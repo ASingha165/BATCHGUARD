@@ -557,11 +557,21 @@ export const RecallOpsPage: React.FC = () => {
                   <div className="p-space-md rounded-xl bg-error-container/30 border border-error-container flex items-start gap-space-md">
                     <span className="material-symbols-outlined text-error text-[28px] shrink-0 mt-0.5">report_problem</span>
                     <div className="flex flex-col">
-                      <span className="font-headline-sm text-headline-sm text-on-surface font-bold">
-                        {blastRadius?.totalUnitsAtRisk.toLocaleString()} Finished Consumer Units At Risk
-                      </span>
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="font-headline-sm text-headline-sm text-on-surface font-bold">
+                          {blastRadius?.totalUnitsAtRisk.toLocaleString()} Finished Consumer Units At Risk
+                        </span>
+                        {blastRadius?.traceabilityCompleteness && (
+                          <span className="font-label-sm text-xs px-2.5 py-0.5 rounded-full bg-secondary-fixed text-primary font-bold">
+                            Completeness: {blastRadius.traceabilityCompleteness.completenessScore}% ({blastRadius.traceabilityCompleteness.confidenceLevel})
+                          </span>
+                        )}
+                      </div>
                       <p className="font-body-md text-body-md text-on-surface-variant mt-1">
-                        Identified across <strong>6 Distribution Centers</strong> and <strong>42 Retail Endpoints</strong>. Automated <code>EDI 940 / Warehouse Hold</code> instructions are pre-compiled and primed for immediate broadcast transmission upon authorization.
+                        Identified across <strong>{blastRadius?.affectedDistributionCentres ?? 6} Distribution Centers</strong> and <strong>{blastRadius?.affectedRetailers ?? 42} Retail Endpoints</strong>.
+                        {blastRadius?.knownRemainingInventory !== undefined && (
+                          <span> ({blastRadius.knownRemainingInventory.toLocaleString()} units confirmed in warehouse inventory; {blastRadius.unknownInventoryQuantities?.toLocaleString() || 0} units pending retail POS verification).</span>
+                        )} Automated <code>EDI 940 / Warehouse Hold</code> instructions are pre-compiled and primed for immediate broadcast transmission upon authorization.
                       </p>
                     </div>
                   </div>

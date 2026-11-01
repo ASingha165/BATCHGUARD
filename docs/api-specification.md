@@ -176,6 +176,73 @@ Retrieves upstream ingredient lineage and downstream distribution mapping for ge
   }
   ```
 
+#### `GET /v1/batches/{batchId}/traceability`
+Retrieves the comprehensive multi-tier graph including recursive upstream ingredients, deduplicated downstream distribution nodes, 6-dimension KDE completeness score, and real-time inventory risk metrics.
+* **Query Parameters:**
+  * `limit` (optional, default 50)
+  * `nextToken` (optional pagination token for large distribution topologies)
+* **Response `data`:**
+  ```json
+  {
+    "batchId": "BG-2024-8891-ORG",
+    "upstreamNodes": [
+      {
+        "nodeId": "NODE-ING-LOT-SPN-01",
+        "lotId": "LOT-SPN-01",
+        "ingredientName": "Fresh Organic Baby Spinach",
+        "supplierId": "SUP-882",
+        "supplierName": "Salinas Valley Organics",
+        "facilityGln": "0850012999011",
+        "farmLocation": "Salinas, CA",
+        "harvestTimestamp": "2024-10-12T06:30:00Z",
+        "quantityUsed": 4800.0,
+        "depth": 1,
+        "parentLotIds": [],
+        "cycleDetected": false,
+        "verified": true,
+        "tests": { "microbial": "CLEAR", "pesticide": "PASS", "heavyMetals": "PASS" }
+      }
+    ],
+    "downstreamNodes": [
+      {
+        "nodeId": "DC-CHICAGO-01",
+        "nodeName": "Chicago Distribution Center",
+        "nodeType": "PRIMARY_DC",
+        "gln": "0850012340019",
+        "location": "Chicago, IL",
+        "shippedUnits": 3400,
+        "receivedUnits": 3400,
+        "soldUnits": 0,
+        "remainingUnits": 3400,
+        "quarantinedUnits": 0,
+        "status": "IN_STORAGE"
+      }
+    ],
+    "completeness": {
+      "overallScore": 94.5,
+      "classification": "HIGH",
+      "originHarvestScore": 100.0,
+      "supplierVerificationScore": 100.0,
+      "labEvidenceScore": 100.0,
+      "chainOfCustodyScore": 95.0,
+      "downstreamDeliveryScore": 90.0,
+      "posInventoryScore": 85.0,
+      "missingKdeFields": []
+    },
+    "impactMetrics": {
+      "totalUnitsAtRisk": 6200,
+      "knownRemainingUnits": 5400,
+      "confirmedSoldUnits": 600,
+      "unconfirmedUnits": 200,
+      "impactedFacilityCount": 3,
+      "carrierInterceptsRequired": 1,
+      "criticalityLevel": "HIGH"
+    },
+    "warnings": [],
+    "nextToken": null
+  }
+  ```
+
 ---
 
 ### 2.3 One-Click Recall Operations (Signature Feature)

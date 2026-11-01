@@ -232,3 +232,20 @@ Primary Table Name: `BatchGuard-Main-{Environment}`
    * SAM: Run `sam validate --lint` on `template.yaml`.
 3. **Branch & Commit Discipline:** Clean descriptive git commit messages prefixed with component context (e.g. `docs:`, `feat(recall):`, `fix(db):`).
 
+---
+
+## 10. Traceability & Recall Intelligence Invariants
+
+1. **Backward Lineage Traversal Invariants:**
+   * Maximum BFS exploration depth is capped at 10 levels.
+   * Circular ancestor references must be detected via path tracking, flagged (`cycleDetected=True`), recorded as an audit warning, and safely severed to prevent infinite execution.
+   * Raw harvest leaves terminate upstream querying when no parent lot IDs or intermediate batch flags exist.
+2. **Forward Tracking & Inventory State Veracity:**
+   * Multiple consignments dispatched to the same physical node are aggregated into a single deduplicated node.
+   * Missing, unconfirmed, or in-transit stock must NEVER be assumed to be zero. Discrepancies are reported as `unconfirmedUnits` to prevent understated recall risk.
+   * Negative remaining stock anomalies incur a 25% penalty on the KDE Traceability Confidence score.
+3. **Traceability Completeness Scoring:**
+   * Evaluated across 6 weighted dimensions: Origin & Harvest (20%), Supplier Verification (15%), Lab Evidence (20%), Chain of Custody (15%), Delivery Timestamps (15%), and Inventory Balance (15%).
+   * Scores are categorized into HIGH (>=90%), MEDIUM (70–89%), and LOW (<70%).
+
+

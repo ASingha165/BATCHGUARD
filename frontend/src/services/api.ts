@@ -109,6 +109,16 @@ export const apiService = {
     }
   },
 
+  async getBatchTraceability(batchId: string, limit?: number): Promise<BatchLineage> {
+    try {
+      const query = limit ? `?limit=${limit}` : '';
+      const res = await fetchJson<BatchLineage>(`/batches/${encodeURIComponent(batchId)}/traceability${query}`);
+      return res.data || DEMO_LINEAGE;
+    } catch {
+      return DEMO_LINEAGE;
+    }
+  },
+
   async createBatch(payload: {
     lotNumber: string;
     gtin: string;

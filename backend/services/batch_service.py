@@ -8,13 +8,23 @@ from backend.common.db import DynamoDBClient, db_client
 from backend.common.exceptions import ResourceNotFoundError
 from backend.common.logger import get_logger
 from backend.models.schemas import CreateBatchRequest
+from backend.services.traceability_engine import TraceabilityEngine, traceability_engine
 
 logger = get_logger("batchguard.services.batch")
 
 
 class BatchService:
-    def __init__(self, db: Optional[DynamoDBClient] = None):
+    def __init__(self, db: Optional[DynamoDBClient] = None, engine: Optional[TraceabilityEngine] = None):
         self.db = db or db_client
+        self._engine = engine
+
+    @property
+    def engine(self) -> TraceabilityEngine:
+        if self._engine is None:
+            self._engine = TraceabilityEngine(db=self.db)
+        elif self._engine.db != self.db:
+            self._engine.db = self.db
+        return self._engine
 
     def get_batch(self, batch_id: str, org_id: str = config.default_org_id) -> Dict[str, Any]:
         """Fetches batch details from DynamoDB single table."""
@@ -40,19 +50,73 @@ class BatchService:
             exclusive_start_key=exclusive_start_key,
         )
 
-    def get_lineage(self, batch_id: str) -> Dict[str, Any]:
-        """Queries upstream ingredient events and downstream distribution records."""
-        pk = f"BATCH#{batch_id}"
-        raw_items, _ = self.db.query_by_pk(pk=pk, limit=100)
+    def get_lineage(self, batch_id: str, org_id: str = config.default_org_id) -> Dict[str, Any]:
+        """Reconstructs the full upstream and downstream lineage graph with KDE completeness scoring."""
+        graph = self.engine.get_full_traceability(batch_id=batch_id, org_id=org_id)
+        data = graph.model_dump()
 
-        upstream = [i for i in raw_items if i.get("SK", "").startswith("INGREDIENT#")]
-        downstream = [i for i in raw_items if i.get("SK", "").startswith("DIST#")]
-
+        # Provide both flat lists for backward compatibility and full graph models
         return {
             "batchId": batch_id,
-            "upstream": upstream,
-            "downstream": downstream,
+            "productName": data.get("productName"),
+            "gtin": data.get("gtin"),
+            "lotNumber": data.get("lotNumber"),
+            "upstream": [
+                {
+                    "rawLotId": u["lotId"],
+                    "ingredient": u["ingredientName"],
+                    "supplier": u["supplierName"],
+                    "supplierId": u["supplierId"],
+                    "farmLocation": u["farmLocation"],
+                    "facilityGln": u["facilityGln"],
+                    "harvestTimestamp": u["harvestTimestamp"],
+                    "quantityUsed": u["quantityUsed"],
+                    "tests": u["tests"],
+                    "depth": u["depth"],
+                    "cycleDetected": u["cycleDetected"],
+                }
+                for u in data.get("upstreamTree", [])
+            ],
+            "downstream": [
+                {
+                    "nodeId": d["nodeId"],
+                    "nodeName": d["nodeName"],
+                    "nodeType": d["nodeType"],
+                    "gln": d["gln"],
+                    "location": d["location"],
+                    "allocatedUnits": d["shippedUnits"],
+                    "shippedUnits": d["shippedUnits"],
+                    "receivedUnits": d["receivedUnits"],
+                    "remainingUnits": d["remainingUnits"],
+                    "quarantinedUnits": d["quarantinedUnits"],
+                    "isInventoryConfirmed": d["isInventoryConfirmed"],
+                    "status": "QUARANTINED" if d["quarantinedUnits"] > 0 else "IN_STORAGE",
+                    "preCommandAction": d["preCommandAction"],
+                }
+                for d in data.get("downstreamNetwork", [])
+            ],
+            "eventsTimeline": data.get("eventsTimeline", []),
+            "impactSummary": data.get("impactSummary"),
+            "traceabilityCompleteness": data.get("traceabilityCompleteness"),
+            "warnings": data.get("warnings", []),
+            "paginationKey": data.get("paginationKey"),
         }
+
+    def get_traceability(
+        self,
+        batch_id: str,
+        org_id: str = config.default_org_id,
+        limit: int = 50,
+        exclusive_start_key: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Returns the complete, authoritative multi-tier graph dossier for the batch."""
+        graph = self.engine.get_full_traceability(
+            batch_id=batch_id,
+            org_id=org_id,
+            limit=limit,
+            exclusive_start_key=exclusive_start_key,
+        )
+        return graph.model_dump()
 
     def create_batch(
         self,

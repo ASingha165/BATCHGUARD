@@ -32,12 +32,21 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         client_org = query_parameters.get("orgId")
         enforce_tenant_boundary(auth, client_org)
 
-        # Route 1: GET /v1/batches/{batchId}/lineage (or /traceability)
-        if http_method == "GET" and (path.endswith("/lineage") or path.endswith("/traceability")):
+        # Route 1a: GET /v1/batches/{batchId}/traceability
+        if http_method == "GET" and path.endswith("/traceability"):
             batch_id = path_parameters.get("batchId") or path.split("/")[-2]
-            # Ensure the batch belongs to caller's org
-            batch_service.get_batch(batch_id, org_id=auth.org_id)
-            lineage_data = batch_service.get_lineage(batch_id)
+            limit = int(query_parameters.get("limit", 50))
+            trace_data = batch_service.get_traceability(
+                batch_id=batch_id,
+                org_id=auth.org_id,
+                limit=limit,
+            )
+            return success_response(data=trace_data, request_id=request_id)
+
+        # Route 1b: GET /v1/batches/{batchId}/lineage
+        if http_method == "GET" and path.endswith("/lineage"):
+            batch_id = path_parameters.get("batchId") or path.split("/")[-2]
+            lineage_data = batch_service.get_lineage(batch_id=batch_id, org_id=auth.org_id)
             return success_response(data=lineage_data, request_id=request_id)
 
         # Route 2: GET /v1/batches/{batchId}

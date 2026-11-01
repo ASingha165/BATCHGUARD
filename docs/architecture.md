@@ -218,3 +218,46 @@ To securely ingest Certificate of Analysis (COA) documents and microbiological l
 
 * **Estimated True Idle Cost:** **\$0.02 – \$0.07 / month** (attributable to DynamoDB PITR base metadata and CloudWatch log baseline alarms; never strictly \$0.00).
 * **Estimated Low-Volume Cost:** **\$0.35 – \$0.65 / month** (well within standard AWS \$300 promotional credit budgets).
+
+---
+
+## 8. Traceability & Blast Radius Intelligence Architecture
+
+### 8.1 Engine Subsystem Structure
+The Traceability Engine (`backend/services/traceability_engine.py`) operates as a decoupled computational module consumed by both the Batch API and the Recall Operations Wizard:
+
+```
+[ API Handler: /batches/{id}/traceability ]     [ Recall Wizard Step 3: assess-blast-radius ]
+                       │                                             │
+                       ▼                                             ▼
+       ┌─────────────────────────────────────────────────────────────────────┐
+       │                 Traceability Intelligence Engine                    │
+       │                                                                     │
+       │  ┌───────────────────────┐         ┌─────────────────────────────┐  │
+       │  │ Upstream Lineage BFS  │         │ Downstream Forward Tracking │  │
+       │  │ (Max Depth 10, Cycle  │         │ (Facility Deduplication &   │  │
+       │  │  Detection & Sever)   │         │  Unit Balance Aggregation)  │  │
+       │  └───────────┬───────────┘         └──────────────┬──────────────┘  │
+       │              │                                    │                 │
+       │              ▼                                    ▼                 │
+       │  ┌───────────────────────────────────────────────────────────────┐  │
+       │  │      KDE Traceability Completeness & Confidence Scoring       │  │
+       │  │      (6 Dimensions: Origin, Supplier, Lab, CoC, POC, Balance) │  │
+       │  └───────────────────────────────┬───────────────────────────────┘  │
+       │                                  │                                  │
+       │                                  ▼                                  │
+       │  ┌───────────────────────────────────────────────────────────────┐  │
+       │  │        Blast Radius Assessment & Risk Quantification          │  │
+       │  │   (Distinguishes Known Remaining vs Unconfirmed Inventory)    │  │
+       │  └───────────────────────────────────────────────────────────────┘  │
+       └──────────────────────────────────┬──────────────────────────────────┘
+                                          │
+                                          ▼
+                         [ DynamoDB Single-Table Store ]
+```
+
+### 8.2 Inventory Veracity Principle
+In high-consequence recalls, assuming missing distribution records represent zero risk introduces catastrophic safety blindspots. The engine enforces the **Inventory Veracity Invariant**:
+$$\text{Unconfirmed Stock} = \max\left(0, \text{Initial Units} - \sum (\text{Remaining} + \text{Sold})\right)$$
+If records do not account for all manufactured units, `unconfirmedUnits` is explicitly surfaced and highlighted in warning indicators.
+

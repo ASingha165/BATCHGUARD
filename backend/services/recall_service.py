@@ -16,90 +16,39 @@ from backend.common.exceptions import (
 from backend.common.logger import get_logger
 from backend.models.schemas import AcknowledgeRecallRequest, InitiateRecallRequest
 
+from backend.services.traceability_engine import TraceabilityEngine, traceability_engine
+
 logger = get_logger("batchguard.services.recall")
 
 
 class RecallService:
-    def __init__(self, db: Optional[DynamoDBClient] = None):
+    def __init__(self, db: Optional[DynamoDBClient] = None, engine: Optional[TraceabilityEngine] = None):
         self.db = db or db_client
+        self._engine = engine
 
-    def assess_blast_radius(self, batch_id: str, org_id: str = config.default_org_id) -> Dict[str, Any]:
-        """Calculates downstream nodes and total units at risk for a given batch.
+    @property
+    def engine(self) -> TraceabilityEngine:
+        if self._engine is None:
+            self._engine = TraceabilityEngine(db=self.db)
+        elif self._engine.db != self.db:
+            self._engine.db = self.db
+        return self._engine
+
+    def assess_blast_radius(
+        self,
+        batch_id: str,
+        org_id: str = config.default_org_id,
+        hazard_class: Optional[str] = "CLASS_I_CRITICAL",
+    ) -> Dict[str, Any]:
+        """Calculates downstream nodes, precise inventory at risk, and completeness via TraceabilityEngine.
 
         Enforces tenant isolation by verifying the batch belongs to the calling organization.
         """
-        # Verify batch exists in caller organization
-        batch_pk = f"ORG#{org_id}"
-        batch_sk = f"BATCH#{batch_id}"
-        batch_item = self.db.get_item(batch_pk, batch_sk)
-
-        pk = f"BATCH#{batch_id}"
-        items, _ = self.db.query_by_pk(pk=pk, sk_prefix="DIST#", limit=100)
-
-        # If items found in DB, aggregate them; otherwise provide standard blast calculation
-        if items:
-            total_units = sum(int(item.get("allocatedUnits", 0)) for item in items)
-            impacted_nodes = []
-            for item in items:
-                impacted_nodes.append({
-                    "nodeId": item.get("nodeId", item.get("SK", "").replace("DIST#", "")),
-                    "nodeName": item.get("nodeName", "Logistics Endpoint"),
-                    "nodeType": item.get("nodeType", "PRIMARY_DC"),
-                    "location": item.get("location", "Undisclosed"),
-                    "lotAllocation": f"{item.get('allocatedUnits', 0):,} units",
-                    "preCommandAction": item.get("preCommandAction", "Apply physical inventory hold"),
-                })
-        else:
-            total_units = 6200
-            impacted_nodes = [
-                {
-                    "nodeId": "DC-NORTH-01",
-                    "nodeName": "Chicago Central Distribution Hub",
-                    "nodeType": "PRIMARY_DC",
-                    "location": "Chicago, IL",
-                    "lotAllocation": "3,400 units",
-                    "preCommandAction": "Apply quarantine lock on pallet bays 4A-4D",
-                },
-                {
-                    "nodeId": "DC-EAST-04",
-                    "nodeName": "Allentown Regional Hub",
-                    "nodeType": "PRIMARY_DC",
-                    "location": "Allentown, PA",
-                    "lotAllocation": "1,800 units",
-                    "preCommandAction": "Stage physical hold in temperature-controlled zone",
-                },
-                {
-                    "nodeId": "RET-STORE-1092",
-                    "nodeName": "Whole Foods Market #084",
-                    "nodeType": "RETAIL_STORE",
-                    "location": "Boston, MA",
-                    "lotAllocation": "600 units",
-                    "preCommandAction": "Scan-block UPC at POS cash registers and pull shelves",
-                },
-                {
-                    "nodeId": "RET-STORE-2144",
-                    "nodeName": "Fresh Market Logistics Depot",
-                    "nodeType": "RETAIL_STORE",
-                    "location": "New York, NY",
-                    "lotAllocation": "400 units",
-                    "preCommandAction": "Scan-block UPC at POS cash registers and pull shelves",
-                },
-            ]
-
-        checklist = [
-            "Notify State Food Safety Authorities within 4 hours",
-            "Broadcast downstream wholesale embargo command",
-            "Lock serial number barcode matrix at checkout POS",
-            "Generate immutable signed cryptographic audit record",
-        ]
-
-        return {
-            "batchId": batch_id,
-            "totalUnitsAtRisk": total_units,
-            "impactedNodes": impacted_nodes,
-            "complianceChecklist": checklist,
-            "organizationId": org_id,
-        }
+        impact = self.engine.calculate_recall_impact(batch_id, org_id=org_id, hazard_class=hazard_class)
+        data = impact.model_dump()
+        # Backward-compatible fields
+        data["totalUnitsAtRisk"] = data["totalUnitsDistributed"]
+        return data
 
     def initiate_recall(
         self,

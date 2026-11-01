@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { apiService } from '../services/api';
-import { Batch } from '../types';
+import { Batch, BatchLineage } from '../types';
 import { Button } from '../components/common/Button';
 import { useToast } from '../components/common/Toast';
 
@@ -10,6 +10,7 @@ export const BatchDetailsPage: React.FC = () => {
   const navigate = useNavigate();
   const { addToast } = useToast();
   const [batch, setBatch] = useState<Batch | null>(null);
+  const [lineage, setLineage] = useState<BatchLineage | null>(null);
   const [timelineTab, setTimelineTab] = useState<'detailed' | 'audit' | 'map'>('detailed');
   const [isLoading, setIsLoading] = useState(true);
 
@@ -17,8 +18,12 @@ export const BatchDetailsPage: React.FC = () => {
     async function loadBatch() {
       setIsLoading(true);
       try {
-        const batchRes = await apiService.getBatchById(batchId);
+        const [batchRes, lineageRes] = await Promise.all([
+          apiService.getBatchById(batchId),
+          apiService.getBatchLineage(batchId),
+        ]);
         setBatch(batchRes);
+        setLineage(lineageRes);
       } finally {
         setIsLoading(false);
       }
@@ -77,7 +82,7 @@ export const BatchDetailsPage: React.FC = () => {
             <div className="flex flex-wrap items-center gap-space-xs pt-1">
               <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-secondary-fixed text-on-secondary-fixed-variant font-label-sm text-label-sm uppercase tracking-wider font-semibold">
                 <span className="w-1.5 h-1.5 rounded-full bg-secondary" />
-                FSMA 204 Compliant
+                {lineage?.traceabilityCompleteness ? `Traceability Score: ${lineage.traceabilityCompleteness.completenessScore}% (${lineage.traceabilityCompleteness.confidenceLevel})` : 'FSMA 204 Framework Aligned'}
               </span>
               <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-tertiary-fixed text-tertiary-container font-label-sm text-label-sm uppercase tracking-wider font-semibold">
                 <span className="w-1.5 h-1.5 rounded-full bg-tertiary animate-pulse" />

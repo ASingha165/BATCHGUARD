@@ -133,6 +133,11 @@ Links a batch to physical inventory resting at or transit to a node.
   * `nodeType`: String
   * `location`: String
   * `allocatedUnits`: Number (e.g. 2800)
+  * `shippedUnits`: Number (units consigned/dispatched)
+  * `receivedUnits`: Number (units confirmed on dock)
+  * `soldUnits`: Number (units registered sold at POS)
+  * `remainingUnits`: Number (units currently physically on-site)
+  * `quarantinedUnits`: Number (units isolated under quarantine lock)
   * `palletIds`: List of Strings (`["PLT-41", "PLT-42", "PLT-43"]`)
   * `shipmentTrackingNumber`: String
   * `status`: String (`IN_STORAGE`, `IN_TRANSIT`, `DELIVERED`, `QUARANTINED`, `DESTROYED`)

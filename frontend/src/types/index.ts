@@ -68,10 +68,40 @@ export interface DownstreamNodeAllocation {
   lotAllocation?: string;
 }
 
+export interface TraceabilityCompleteness {
+  completenessScore: number;
+  confidenceLevel: 'HIGH' | 'MEDIUM' | 'LOW';
+  supplierVerified: boolean;
+  ingredientLineageComplete: boolean;
+  manufacturingEventsComplete: boolean;
+  distributionHandoffsVerified: boolean;
+  quantityReconciled: boolean;
+  timestampsConsistent: boolean;
+  missingEvidence: string[];
+  brokenRelationships: string[];
+  unverifiedHandoffs: string[];
+  methodology: string;
+}
+
 export interface BatchLineage {
   batchId: string;
+  productName?: string;
+  gtin?: string;
+  lotNumber?: string;
   upstream: UpstreamIngredient[];
   downstream: DownstreamNodeAllocation[];
+  eventsTimeline?: Array<{
+    stepNumber: string;
+    title: string;
+    timestamp: string;
+    location: string;
+    description: string;
+    status: string;
+    kdeRecord: string;
+  }>;
+  traceabilityCompleteness?: TraceabilityCompleteness;
+  warnings?: string[];
+  paginationKey?: string;
 }
 
 export interface ImpactedNode {
@@ -81,13 +111,28 @@ export interface ImpactedNode {
   location: string;
   lotAllocation: string;
   preCommandAction: string;
+  remainingUnits?: number;
+  quarantinedUnits?: number;
+  isInventoryConfirmed?: boolean;
 }
 
 export interface BlastRadiusAssessment {
   batchId: string;
   totalUnitsAtRisk: number;
+  totalDownstreamFacilities?: number;
+  affectedDistributionCentres?: number;
+  affectedRetailers?: number;
+  affectedLogisticsCarriers?: number;
+  totalUnitsDistributed?: number;
+  knownRemainingInventory?: number;
+  unknownInventoryQuantities?: number;
+  totalUnitsRequiringInvestigation?: number;
+  traceabilityCompleteness?: TraceabilityCompleteness;
   impactedNodes: ImpactedNode[];
   complianceChecklist: string[];
+  missingRelationships?: string[];
+  warnings?: string[];
+  impactAssessmentTimestamp?: string;
 }
 
 export interface RecallIncident {
