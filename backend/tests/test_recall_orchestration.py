@@ -575,3 +575,70 @@ def test_recall_does_not_complete_without_physical_hold_verification(mock_orches
         if call[1].get("sk", "").startswith("ACTIVE_RECALL#")
     ]
     assert len(delete_calls) == 0
+
+
+def test_duplicate_acknowledgement_idempotent_update(mock_orchestration_db):
+    """Submitting multiple acknowledgements for the same node idempotently updates the node status."""
+    recall_record = {
+        "PK": "ORG#ORG-APEX-GLOBAL",
+        "SK": "RECALL#REC-2026-TEST",
+        "recallId": "REC-2026-TEST",
+        "batchId": "BG-2024-8891-ORG",
+        "orgId": "ORG-APEX-GLOBAL",
+        "status": "PARTIALLY_ACKNOWLEDGED",
+        "hazardClass": "CLASS_I_CRITICAL",
+        "totalUnitsAtRisk": 500,
+    }
+    ack_store = {
+        ("RECALL#REC-2026-TEST", "ACK#DC-DENVER-01"): {
+            "PK": "RECALL#REC-2026-TEST",
+            "SK": "ACK#DC-DENVER-01",
+            "nodeId": "DC-DENVER-01",
+            "status": "ACKNOWLEDGED",
+            "unitsQuarantined": 200,
+            "physicalHoldVerified": False,
+        }
+    }
+
+    def fake_get_item(pk, sk):
+        if pk == "ORG#ORG-APEX-GLOBAL" and sk == "RECALL#REC-2026-TEST":
+            return dict(recall_record)
+        return ack_store.get((pk, sk))
+
+    def fake_put_item(item):
+        if item.get("SK", "").startswith("ACK#"):
+            ack_store[(item["PK"], item["SK"])] = dict(item)
+        return item
+
+    mock_orchestration_db.get_item.side_effect = fake_get_item
+    mock_orchestration_db.put_item.side_effect = fake_put_item
+    mock_orchestration_db.query_by_pk.return_value = (list(ack_store.values()), None)
+
+    service = RecallService(db=mock_orchestration_db)
+
+    # First acknowledgement update: verified hold is still False
+    req1 = AcknowledgeRecallRequest(
+        nodeId="DC-DENVER-01",
+        acknowledgedBy="supervisor@apex.internal",
+        unitsQuarantined=200,
+        posScanBlockApplied=True,
+        physicalHoldVerified=False,
+    )
+    res1 = service.acknowledge_recall(recall_id="REC-2026-TEST", payload=req1, org_id="ORG-APEX-GLOBAL")
+    assert res1["status"] == "ACKNOWLEDGED"
+    assert res1["physicalHoldVerified"] is False
+
+    # Second acknowledgement update: warehouse manager confirms physical cooler lock
+    req2 = AcknowledgeRecallRequest(
+        nodeId="DC-DENVER-01",
+        acknowledgedBy="supervisor@apex.internal",
+        unitsQuarantined=200,
+        posScanBlockApplied=True,
+        physicalHoldVerified=True,
+    )
+    res2 = service.acknowledge_recall(recall_id="REC-2026-TEST", payload=req2, org_id="ORG-APEX-GLOBAL")
+    assert res2["status"] == "HOLD_VERIFIED"
+    assert res2["physicalHoldVerified"] is True
+    # The record key remains identical
+    assert len(ack_store) == 1
+

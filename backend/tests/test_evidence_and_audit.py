@@ -5,7 +5,7 @@ import json
 from unittest.mock import MagicMock
 from pydantic import ValidationError as PydanticValidationError
 import pytest
-from backend.common.exceptions import ResourceNotFoundError, ValidationError
+from backend.common.exceptions import IdempotencyConflictError, ResourceNotFoundError, ValidationError
 from backend.models.schemas import PresignedUrlRequest, RecordAuditLogRequest
 from backend.services.audit_service import AuditService, GENESIS_HASH, compute_hash
 from backend.services.evidence_service import EvidenceService, sanitize_filename
@@ -322,3 +322,162 @@ def test_audit_hash_chain_serialization_round_trip():
     }
     hash_2 = compute_hash(content_reordered)
     assert hash_1 == hash_2, "Canonical JSON hashing must be invariant to dict key insertion order"
+
+
+def test_audit_ledger_head_tail_truncation_detection(mock_db):
+    """Detects when an attacker deletes the most recent (tail) records while prefix remains intact."""
+    stored_entries = []
+    ledger_head = {}
+
+    def mock_put_cond(item, **kwargs):
+        stored_entries.append(copy.deepcopy(item))
+        return item
+
+    def mock_put(item, **kwargs):
+        if item.get("SK") == "AUDIT_LEDGER_HEAD":
+            ledger_head.update(copy.deepcopy(item))
+        return item
+
+    def mock_get(pk, sk):
+        if sk == "AUDIT_LEDGER_HEAD" and ledger_head:
+            return copy.deepcopy(ledger_head)
+        return None
+
+    def mock_query(pk, sk_prefix="", limit=50, scan_index_forward=False):
+        sorted_entries = sorted(stored_entries, key=lambda x: x["SK"], reverse=not scan_index_forward)
+        return copy.deepcopy(sorted_entries[:limit]), None
+
+    mock_db.conditional_put_item.side_effect = mock_put_cond
+    mock_db.put_item.side_effect = mock_put
+    mock_db.get_item.side_effect = mock_get
+    mock_db.query_by_pk.side_effect = mock_query
+
+    service = AuditService(db=mock_db)
+
+    # Record 3 entries
+    e1 = service.record_audit_entry(
+        RecordAuditLogRequest(eventType="ACTION_1", actor="user1", targetResource="RES#1", actionSummary="Sum 1"),
+        org_id="ORG-TEST",
+    )
+    e2 = service.record_audit_entry(
+        RecordAuditLogRequest(eventType="ACTION_2", actor="user2", targetResource="RES#2", actionSummary="Sum 2"),
+        org_id="ORG-TEST",
+    )
+    e3 = service.record_audit_entry(
+        RecordAuditLogRequest(eventType="ACTION_3", actor="user3", targetResource="RES#3", actionSummary="Sum 3"),
+        org_id="ORG-TEST",
+    )
+
+    # Initial verification must pass
+    is_valid, errors = service.verify_chain(org_id="ORG-TEST")
+    assert is_valid is True
+    assert len(errors) == 0
+
+    # Simulate Tail Truncation: Attacker silently deletes the 3rd (tail) entry from the table
+    # The remaining 2 entries are intact and form a valid sub-chain, but ledger head knows 3 exist
+    stored_entries.pop()
+
+    is_valid, errors = service.verify_chain(org_id="ORG-TEST")
+    assert is_valid is False
+    assert any("Tail truncation detected" in err for err in errors)
+    assert any("Tail hash mismatch" in err for err in errors)
+
+
+def test_audit_ledger_head_tail_hash_mismatch(mock_db):
+    """Detects when the last entry's recordHash does not match the ledger head latestHash."""
+    stored_entries = []
+    ledger_head = {}
+
+    def mock_put_cond(item, **kwargs):
+        stored_entries.append(copy.deepcopy(item))
+        return item
+
+    def mock_put(item, **kwargs):
+        if item.get("SK") == "AUDIT_LEDGER_HEAD":
+            ledger_head.update(copy.deepcopy(item))
+        return item
+
+    def mock_get(pk, sk):
+        if sk == "AUDIT_LEDGER_HEAD" and ledger_head:
+            return copy.deepcopy(ledger_head)
+        return None
+
+    def mock_query(pk, sk_prefix="", limit=50, scan_index_forward=False):
+        sorted_entries = sorted(stored_entries, key=lambda x: x["SK"], reverse=not scan_index_forward)
+        return copy.deepcopy(sorted_entries[:limit]), None
+
+    mock_db.conditional_put_item.side_effect = mock_put_cond
+    mock_db.put_item.side_effect = mock_put
+    mock_db.get_item.side_effect = mock_get
+    mock_db.query_by_pk.side_effect = mock_query
+
+    service = AuditService(db=mock_db)
+
+    service.record_audit_entry(
+        RecordAuditLogRequest(eventType="ACTION_1", actor="user1", targetResource="RES#1", actionSummary="Sum 1"),
+        org_id="ORG-TEST",
+    )
+
+    # Tamper with ledger head latestHash
+    ledger_head["latestHash"] = "0x" + "f" * 64
+
+    is_valid, errors = service.verify_chain(org_id="ORG-TEST")
+    assert is_valid is False
+    assert any("Tail hash mismatch" in err for err in errors)
+
+
+def test_audit_concurrent_write_contention_and_retry(mock_db):
+    """Simulates optimistic concurrency collision and verifies jittered backoff retry succeeds."""
+    attempts = 0
+    stored_entries = []
+
+    def mock_put_with_contention(item, **kwargs):
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            # First attempt collides with another Lambda writing concurrently
+            raise IdempotencyConflictError("DynamoDB transaction cancelled: ConditionalCheckFailed")
+        stored_entries.append(copy.deepcopy(item))
+        return item
+
+    mock_db.conditional_put_item.side_effect = mock_put_with_contention
+    mock_db.get_item.return_value = None
+    mock_db.query_by_pk.return_value = ([], None)
+
+    service = AuditService(db=mock_db)
+    result = service.record_audit_entry(
+        RecordAuditLogRequest(
+            eventType="CONCURRENT_ACTION",
+            actor="worker@apex.com",
+            targetResource="BATCH#100",
+            actionSummary="Concurrent write test",
+        ),
+        org_id="ORG-TEST",
+        max_retries=3,
+    )
+
+    assert result["auditId"].startswith("AUD-")
+    assert attempts == 2, "Must succeed on the second attempt after retry"
+
+
+def test_audit_retry_exhaustion_raises_conflict(mock_db):
+    """Verifies that exceeding max_retries on persistent collision properly raises IdempotencyConflictError."""
+    mock_db.conditional_put_item.side_effect = IdempotencyConflictError("Conditional check failed repeatedly")
+    mock_db.get_item.return_value = None
+    mock_db.query_by_pk.return_value = ([], None)
+
+    service = AuditService(db=mock_db)
+    with pytest.raises(IdempotencyConflictError) as exc_info:
+        service.record_audit_entry(
+            RecordAuditLogRequest(
+                eventType="FAILING_ACTION",
+                actor="worker@apex.com",
+                targetResource="BATCH#100",
+                actionSummary="Exhaustion test",
+            ),
+            org_id="ORG-TEST",
+            max_retries=3,
+        )
+
+    assert "failed to atomically commit audit log entry" in str(exc_info.value).lower()
+

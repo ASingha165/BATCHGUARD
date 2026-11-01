@@ -144,7 +144,21 @@ backend/tests/test_traceability_engine.py ............................ [100%]
 
 ---
 
-## 8. Remaining Blockers & Host Prerequisites
+## 8. Stage 8A.2 Concurrency, Idempotency & Audit Ledger Head Verification
+
+### 8.1 Audit Trail Concurrency & Tail Truncation Safeguards
+1. **Deterministic Canonicalization:** Canonical JSON serialization uses strict alphabetical key sorting and compact delimiters (`json.dumps(data, sort_keys=True, separators=(',', ':'))`). All security-critical attributes (`auditId`, `orgId`, `timestamp`, `sequenceNumber`, `eventType`, `actor`, `targetResource`, `actionSummary`, `details`, `previousHash`) are sealed into the record hash.
+2. **Atomic DynamoDB Ledger Head (`AUDIT_LEDGER_HEAD`):** Replaced ephemeral in-memory sequence tracking with an atomic DynamoDB item (`PK=ORG#<orgId>, SK=AUDIT_LEDGER_HEAD`). Every append operation evaluates conditional constraints (`latestHash = :prev_hash` or `attribute_not_exists(latestHash)`) either via `transact_write_items` or conditional writes with exponential jittered backoff (up to 5 retries), preventing sequence number collision and chain forking across concurrent Lambdas.
+3. **Tail Truncation & Tamper Detection:** In addition to forward pointer verification (`previousHash`), `verify_chain(org_id)` queries `AUDIT_LEDGER_HEAD` to detect silent record truncation (where an adversary removes recent tail records while leaving older records intact) and tail hash divergence.
+
+### 8.2 Recall Orchestration Concurrency & Idempotency
+1. **Atomic Mutual Exclusion Lock:** Enforces single active recall per batch using `PK=ORG#<orgId>, SK=ACTIVE_RECALL#<batchId>` with conditional expression `attribute_not_exists(PK) AND attribute_not_exists(SK)`.
+2. **Terminal State Protection:** Terminal states (`COMPLETED`, `REJECTED`, `FAILED`, `CANCELLED`) automatically release the active recall lock and reject subsequent acknowledgement mutations.
+3. **Duplicate Acknowledgement Idempotency:** Re-acknowledgements from identical facility nodes update status and hold metrics idempotently under `PK=RECALL#<recallId>, SK=ACK#<nodeId>`.
+
+---
+
+## 9. Remaining Blockers & Host Prerequisites
 
 1. **Install AWS SAM CLI:**
    ```powershell
@@ -157,8 +171,10 @@ backend/tests/test_traceability_engine.py ............................ [100%]
 
 ---
 
-## 9. Final Deployment Readiness Verdict
+## 10. Final Deployment Readiness Verdict
 
 * **Verdict:** **`VERIFIED READY WITH LOCAL HOST PREREQUISITES`**
-* **Deployment Integrity:** The state machine, worker lambdas, API handlers, S3 Evidence Vault, SHA-256 audit chain, and concurrency locks have been audited and verified.
+* **Deployment Integrity:** The state machine, worker lambdas, API handlers, S3 Evidence Vault, SHA-256 audit chain with atomic ledger head, and concurrency locks have been audited and verified.
+* **Test Verification:** 86/86 backend pytest tests passing, 0 TypeScript compile errors, Vite production build clean (1.50s).
 * **Cloud Status:** **NO AWS RESOURCES WERE CREATED OR MODIFIED.**
+

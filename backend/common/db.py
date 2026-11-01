@@ -104,6 +104,19 @@ class DynamoDBClient:
             logger.error(f"Error in conditional put for PK={item.get('PK')}: {e}")
             raise BatchGuardException(f"DynamoDB conditional put failed: {e.response['Error']['Message']}")
 
+    def transact_write_items(self, transact_items: List[Dict[str, Any]]) -> None:
+        """Executes atomic all-or-nothing transactions across items in the single table."""
+        try:
+            client = self.table.meta.client
+            client.transact_write_items(TransactItems=transact_items)
+        except ClientError as e:
+            code = e.response["Error"]["Code"]
+            if code == "TransactionCanceledException":
+                logger.warning(f"DynamoDB transaction cancelled: {e}")
+                raise IdempotencyConflictError(f"DynamoDB transaction cancelled: {e.response['Error']['Message']}")
+            logger.error(f"Error in transact_write_items: {e}")
+            raise BatchGuardException(f"DynamoDB transaction failed: {e.response['Error']['Message']}")
+
     def update_item(
         self,
         pk: str,
