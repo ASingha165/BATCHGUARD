@@ -15,15 +15,15 @@ BatchGuard is architected strictly as an on-demand, event-driven serverless syst
 | **Database** | `BatchGuardMainTable` | `AWS::DynamoDB::Table` | Pay-Per-Request (On-Demand) | Auto-scaling (0 provisioned RCU/WCU), SSE enabled, PITR enabled |
 | **Object Storage** | `EvidenceVaultBucket` | `AWS::S3::Bucket` | Standard S3 (GB-mo + requests) | Private (PublicAccessBlock 1111), SSE-S3 AES-256 |
 | **Object Policy** | `EvidenceVaultBucketPolicy` | `AWS::S3::BucketPolicy` | N/A (Included with S3) | Enforces `aws:SecureTransport: "false"` denial (HTTPS only) |
-| **Messaging** | `RecallEmergencyAlertsTopic` | `AWS::SNS::Topic` | Pay-per-publish / notification | Standard SNS Topic |
+| **Messaging** | `RecallTopic` | `AWS::SNS::Topic` | Pay-per-publish / notification | Standard SNS Topic |
 | **State Machine** | `RecallOrchestratorStateMachine` | `AWS::Serverless::StateMachine` | Standard Workflow (State transitions) | 18 states, `.waitForTaskToken` callback, 86,400s timeout |
 | **API Ingress** | `BatchGuardApi` | `AWS::Serverless::Api` | REST API (API Gateway v1) | Pay-per-million calls, Cognito authorizer, CORS enabled |
 | **Auth** | `BatchGuardUserPool` | `AWS::Cognito::UserPool` | Monthly Active Users (MAU) | SRP auth, optional software MFA, custom org_id attribute |
 | **Auth Client** | `BatchGuardUserPoolClient` | `AWS::Cognito::UserPoolClient` | N/A (Included with Cognito) | Public SPA client, SRP auth |
-| **Compute: API** | `BatchesFunction` | `AWS::Serverless::Function` | Lambda GB-seconds + invocations | `handlers.batch_handler.lambda_handler` (256 MB, 15s) |
+| **Compute: API** | `BatchFunction` | `AWS::Serverless::Function` | Lambda GB-seconds + invocations | `handlers.batch_handler.lambda_handler` (256 MB, 15s) |
 | **Compute: API** | `TraceabilityFunction`| `AWS::Serverless::Function` | Lambda GB-seconds + invocations | `handlers.traceability_handler.lambda_handler` (512 MB, 20s) |
-| **Compute: API** | `RecallsFunction` | `AWS::Serverless::Function` | Lambda GB-seconds + invocations | `handlers.recall_handler.lambda_handler` (256 MB, 15s) |
-| **Compute: API** | `SuppliersFunction` | `AWS::Serverless::Function` | Lambda GB-seconds + invocations | `handlers.supplier_handler.lambda_handler` (256 MB, 15s) |
+| **Compute: API** | `RecallFunction` | `AWS::Serverless::Function` | Lambda GB-seconds + invocations | `handlers.recall_handler.lambda_handler` (256 MB, 15s) |
+| **Compute: API** | `SupplierFunction` | `AWS::Serverless::Function` | Lambda GB-seconds + invocations | `handlers.supplier_handler.lambda_handler` (256 MB, 15s) |
 | **Compute: API** | `DistributionFunction`| `AWS::Serverless::Function` | Lambda GB-seconds + invocations | `handlers.distribution_handler.lambda_handler` (256 MB, 15s) |
 | **Compute: API** | `EvidenceFunction` | `AWS::Serverless::Function` | Lambda GB-seconds + invocations | `handlers.evidence_handler.lambda_handler` (256 MB, 15s) |
 | **Compute: API** | `AuditFunction` | `AWS::Serverless::Function` | Lambda GB-seconds + invocations | `handlers.audit_handler.lambda_handler` (256 MB, 15s) |
