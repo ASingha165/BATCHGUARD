@@ -609,12 +609,13 @@ Resources:
           AttributeDataType: String
           Required: false
           Mutable: true
-      PasswordPolicy:
-        MinimumLength: 12
-        RequireUppercase: true
-        RequireLowercase: true
-        RequireNumbers: true
-        RequireSymbols: true
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 12
+          RequireUppercase: true
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: true
 
   BatchGuardUserPoolClient:
     Type: AWS::Cognito::UserPoolClient
