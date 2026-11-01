@@ -290,8 +290,13 @@ class RecallService:
         org_id: str = config.default_org_id,
     ) -> Dict[str, Any]:
         """Records a facility node's acknowledgement and quarantine verification."""
-        # Verify recall belongs to org
-        self.get_recall(recall_id, org_id=org_id)
+        # Verify recall belongs to org and is in an actionable state
+        current_recall = self.get_recall(recall_id, org_id=org_id, sanitize=False)
+        curr_status = current_recall.get("status")
+        if curr_status in {"REJECTED", "FAILED", "CANCELLED", "COMPLETED"}:
+            raise InvalidStateTransitionError(
+                f"Cannot record acknowledgement for recall '{recall_id}' in terminal state '{curr_status}'."
+            )
 
         now = datetime.now(timezone.utc).isoformat()
         pk = f"RECALL#{recall_id}"
@@ -316,10 +321,12 @@ class RecallService:
         # Check overall acknowledgement progress and auto-progress lifecycle where appropriate
         try:
             summary = self.get_acknowledgement_summary(recall_id, org_id=org_id)
-            current_recall = self.get_recall(recall_id, org_id=org_id, sanitize=False)
-            curr_status = current_recall.get("status")
+            total_impacted = summary.get("totalImpactedFacilities", 0)
+            verified_holds = summary.get("verifiedHoldCount", 0)
+            all_ack = summary.get("allAcknowledged", False)
+
             if curr_status in ["AWAITING_ACKNOWLEDGEMENTS", "PARTIALLY_ACKNOWLEDGED"]:
-                if summary.get("allAcknowledged") and summary.get("verifiedHoldCount") == summary.get("totalImpactedFacilities"):
+                if total_impacted > 0 and all_ack and verified_holds == total_impacted:
                     self.transition_recall_status(
                         recall_id=recall_id,
                         target_status="COMPLETED",

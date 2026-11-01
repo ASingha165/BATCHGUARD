@@ -477,3 +477,101 @@ def test_acknowledge_recall_auto_progression(mock_orchestration_db):
     mock_orchestration_db.delete_item.assert_called_with(
         pk="ORG#ORG-APEX-GLOBAL", sk="ACTIVE_RECALL#BG-2024-8891-ORG"
     )
+
+
+def test_acknowledge_recall_rejected_when_recall_in_terminal_state(mock_orchestration_db):
+    """Attempting to acknowledge a recall in terminal state (e.g. REJECTED, COMPLETED) raises InvalidStateTransitionError."""
+    mock_orchestration_db.get_item.return_value = {
+        "PK": "ORG#ORG-APEX-GLOBAL",
+        "SK": "RECALL#REC-2026-TEST",
+        "recallId": "REC-2026-TEST",
+        "batchId": "BG-2024-8891-ORG",
+        "orgId": "ORG-APEX-GLOBAL",
+        "status": "REJECTED",
+    }
+    service = RecallService(db=mock_orchestration_db)
+    req = AcknowledgeRecallRequest(
+        nodeId="DC-DENVER-01",
+        acknowledgedBy="ops.mgr@apex.internal",
+        unitsQuarantined=500,
+        posScanBlockApplied=True,
+        physicalHoldVerified=True,
+    )
+    with pytest.raises(InvalidStateTransitionError) as exc:
+        service.acknowledge_recall(
+            recall_id="REC-2026-TEST",
+            payload=req,
+            org_id="ORG-APEX-GLOBAL",
+        )
+    assert "Cannot record acknowledgement for recall 'REC-2026-TEST' in terminal state 'REJECTED'" in str(exc.value)
+
+
+def test_recall_does_not_complete_without_physical_hold_verification(mock_orchestration_db):
+    """All facilities acknowledging alert without physical hold verification must NOT complete the recall."""
+    recall_record = {
+        "PK": "ORG#ORG-APEX-GLOBAL",
+        "SK": "RECALL#REC-2026-TEST",
+        "recallId": "REC-2026-TEST",
+        "batchId": "BG-2024-8891-ORG",
+        "orgId": "ORG-APEX-GLOBAL",
+        "status": "AWAITING_ACKNOWLEDGEMENTS",
+        "hazardClass": "CLASS_I_CRITICAL",
+        "totalUnitsAtRisk": 1000,
+        "affectedFacilities": ["DC-DENVER-01", "DC-DALLAS-02"],
+    }
+    ack1 = {
+        "PK": "RECALL#REC-2026-TEST",
+        "SK": "ACK#DC-DENVER-01",
+        "nodeId": "DC-DENVER-01",
+        "status": "PENDING",
+        "physicalHoldVerified": False,
+    }
+
+    def fake_get_item(pk, sk):
+        if pk == "ORG#ORG-APEX-GLOBAL" and sk == "RECALL#REC-2026-TEST":
+            return dict(recall_record)
+        if pk == "RECALL#REC-2026-TEST" and sk == "ACK#DC-DENVER-01":
+            return dict(ack1)
+        return None
+
+    mock_orchestration_db.get_item.side_effect = fake_get_item
+
+    # Both facilities acknowledge receipt, but physicalHoldVerified is FALSE for both
+    mock_orchestration_db.query_by_pk.return_value = (
+        [
+            {"PK": "RECALL#REC-2026-TEST", "SK": "ACK#DC-DENVER-01", "nodeId": "DC-DENVER-01", "status": "ACKNOWLEDGED", "physicalHoldVerified": False, "unitsQuarantined": 0},
+            {"PK": "RECALL#REC-2026-TEST", "SK": "ACK#DC-DALLAS-02", "nodeId": "DC-DALLAS-02", "status": "ACKNOWLEDGED", "physicalHoldVerified": False, "unitsQuarantined": 0},
+        ],
+        None,
+    )
+
+    service = RecallService(db=mock_orchestration_db)
+    req = AcknowledgeRecallRequest(
+        nodeId="DC-DENVER-01",
+        acknowledgedBy="ops.mgr@apex.internal",
+        unitsQuarantined=0,
+        posScanBlockApplied=True,
+        physicalHoldVerified=False,  # Physical hold not yet confirmed in cooler
+    )
+    ack_res = service.acknowledge_recall(
+        recall_id="REC-2026-TEST",
+        payload=req,
+        org_id="ORG-APEX-GLOBAL",
+    )
+    assert ack_res["status"] == "ACKNOWLEDGED"
+
+    # Status must NOT transition to COMPLETED
+    put_recalls = [
+        call[0][0] for call in mock_orchestration_db.put_item.call_args_list
+        if isinstance(call[0][0], dict) and call[0][0].get("SK") == "RECALL#REC-2026-TEST"
+    ]
+    if len(put_recalls) > 0:
+        assert put_recalls[-1]["status"] != "COMPLETED"
+        assert put_recalls[-1]["status"] == "PARTIALLY_ACKNOWLEDGED"
+
+    # Lock must NOT be deleted
+    delete_calls = [
+        call for call in mock_orchestration_db.delete_item.call_args_list
+        if call[1].get("sk", "").startswith("ACTIVE_RECALL#")
+    ]
+    assert len(delete_calls) == 0

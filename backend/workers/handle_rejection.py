@@ -15,8 +15,9 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """Records human rejection of recall, ensures lock release, and marks workflow terminated."""
     recall_id = event.get("recallId")
     org_id = event.get("orgId", config.default_org_id)
-    rejected_by = event.get("rejectedBy", "COMPLIANCE_OFFICER")
-    reason = event.get("reason", "Recall rejected by compliance review.")
+    approval_res = event.get("approvalResult", {})
+    rejected_by = event.get("rejectedBy") or approval_res.get("rejectedBy") or "COMPLIANCE_OFFICER"
+    reason = approval_res.get("reason") or event.get("reason") or "Recall rejected by compliance review."
 
     logger.warning(f"Step Functions task: Handling recall rejection for {recall_id}. Reason: {reason}")
 

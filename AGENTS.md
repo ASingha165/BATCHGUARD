@@ -265,3 +265,22 @@ Primary Table Name: `BatchGuard-Main-{Environment}`
 
 
 
+
+---
+
+## 12. Audit Trail & Recall Completion Invariants
+
+1. **Content-Addressable SHA-256 Hash Chain:**
+   * The audit trail operates as an append-only, content-addressable SHA-256 hash chain where each record cryptographically commits to the canonical JSON of its content and the `recordHash` of its immediate predecessor (`previousHash`).
+   * The Genesis record links to `GENESIS_HASH` (`0x` + 64 zeros).
+   * Canonical serialization strictly uses sorted keys with compact separators (`json.dumps(data, sort_keys=True, separators=(',', ':'))`).
+   * Frame the audit mechanism strictly and accurately as a **SHA-256 content-addressable integrity hash chain**; never claim PKI digital signatures or hardware HSM signatures.
+
+2. **Strict Recall Completion Criteria:**
+   * A recall MUST NOT transition to `COMPLETED` merely because notifications were dispatched or facilities submitted basic alert receipts (`ACKNOWLEDGED`).
+   * Transition to `COMPLETED` strictly requires:
+     1. `totalImpactedFacilities > 0`
+     2. `allAcknowledged == True`
+     3. `verifiedHoldCount == totalImpactedFacilities` (every single impacted facility has verified physical cooler/warehouse quarantine with `physicalHoldVerified == True`).
+   * Facilities submitting unconfirmed receipts remain in `PARTIALLY_ACKNOWLEDGED`.
+   * Reaching `COMPLETED`, `REJECTED`, `FAILED`, or `CANCELLED` automatically releases the atomic active recall lock (`ACTIVE_RECALL#<batchId>`).

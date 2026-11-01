@@ -1,87 +1,108 @@
 # AWS Resource Inventory & Cost Estimation — BatchGuard
 
-> **Stage 8A Cloud Readiness Artifact**  
-> Complete inventory of AWS Serverless resources specified in `template.yaml` and `statemachine/recall_orchestrator.asl.json`, with billing models, free tier boundaries, and monthly cost projections across usage tiers.
+> **Stage 8A.1 Cloud Readiness & Cost Integrity Artifact**  
+> Complete verified inventory of AWS Serverless resources specified in `template.yaml` and `statemachine/recall_orchestrator.asl.json`.
+> Strictly separates verified pricing, free tier assumptions, workload estimates, and cost controls.
 
 ---
 
-## 1. Resource Catalog Summary
+## 1. Verified Resource Catalog
 
 BatchGuard is architected strictly as an on-demand, event-driven serverless system. There are **zero constantly running compute instances, idle containers, or provisioned database capacity units**.
 
-| Category | Logical Resource ID | AWS Service / Resource Type | Billing Model | Sizing / Concurrency |
+| Category | Logical Resource ID | AWS Service / Resource Type | Billing Model | Configuration / Handler |
 | :--- | :--- | :--- | :--- | :--- |
-| **Database** | `BatchGuardMainTable` | `AWS::DynamoDB::Table` | Pay-Per-Request (On-Demand) | Auto-scaling (0 provisioned RCU/WCU), SSE enabled |
-| **Object Storage** | `EvidenceVaultBucket` | `AWS::S3::Bucket` | Standard S3 (GB-mo + requests) | Private, TLS enforced, SSE-S3 |
-| **Object Policy** | `EvidenceVaultBucketPolicy` | `AWS::S3::BucketPolicy` | N/A (Included with S3) | Enforces `aws:SecureTransport: "false"` denial |
+| **Database** | `BatchGuardMainTable` | `AWS::DynamoDB::Table` | Pay-Per-Request (On-Demand) | Auto-scaling (0 provisioned RCU/WCU), SSE enabled, PITR enabled |
+| **Object Storage** | `EvidenceVaultBucket` | `AWS::S3::Bucket` | Standard S3 (GB-mo + requests) | Private (PublicAccessBlock 1111), SSE-S3 AES-256 |
+| **Object Policy** | `EvidenceVaultBucketPolicy` | `AWS::S3::BucketPolicy` | N/A (Included with S3) | Enforces `aws:SecureTransport: "false"` denial (HTTPS only) |
 | **Messaging** | `RecallEmergencyAlertsTopic` | `AWS::SNS::Topic` | Pay-per-publish / notification | Standard SNS Topic |
-| **State Machine** | `RecallOrchestratorStateMachine` | `AWS::StepFunctions::StateMachine` | Standard Workflow (State transitions) | 18 states, `.waitForTaskToken` callback |
-| **API Ingress** | `BatchGuardApi` | `AWS::Serverless::Api` | REST API (API Gateway v1) | Pay-per-million calls, CORS enabled |
-| **Auth** | `BatchGuardUserPool` | `AWS::Cognito::UserPool` | Monthly Active Users (MAU) | 50,000 MAU Free Tier, SRP & Passwords |
+| **State Machine** | `RecallOrchestratorStateMachine` | `AWS::Serverless::StateMachine` | Standard Workflow (State transitions) | 18 states, `.waitForTaskToken` callback, 86,400s timeout |
+| **API Ingress** | `BatchGuardApi` | `AWS::Serverless::Api` | REST API (API Gateway v1) | Pay-per-million calls, Cognito authorizer, CORS enabled |
+| **Auth** | `BatchGuardUserPool` | `AWS::Cognito::UserPool` | Monthly Active Users (MAU) | SRP auth, optional software MFA, custom org_id attribute |
 | **Auth Client** | `BatchGuardUserPoolClient` | `AWS::Cognito::UserPoolClient` | N/A (Included with Cognito) | Public SPA client, SRP auth |
-| **Compute: API** | `BatchesFunction` | `AWS::Serverless::Function` | Lambda GB-seconds + invocations | 256 MB, Python 3.12, 15s timeout |
-| **Compute: API** | `TraceabilityFunction`| `AWS::Serverless::Function` | Lambda GB-seconds + invocations | 512 MB, Python 3.12, 20s timeout |
-| **Compute: API** | `RecallsFunction` | `AWS::Serverless::Function` | Lambda GB-seconds + invocations | 256 MB, Python 3.12, 15s timeout |
-| **Compute: API** | `SuppliersFunction` | `AWS::Serverless::Function` | Lambda GB-seconds + invocations | 256 MB, Python 3.12, 15s timeout |
-| **Compute: API** | `DistributionFunction`| `AWS::Serverless::Function` | Lambda GB-seconds + invocations | 256 MB, Python 3.12, 15s timeout |
-| **Compute: API** | `EvidenceFunction` | `AWS::Serverless::Function` | Lambda GB-seconds + invocations | 256 MB, Python 3.12, 15s timeout |
-| **Compute: API** | `AuditFunction` | `AWS::Serverless::Function` | Lambda GB-seconds + invocations | 256 MB, Python 3.12, 15s timeout |
-| **Compute: Worker**| `CalculateBlastRadiusFunction` | `AWS::Serverless::Function` | Lambda GB-seconds + invocations | 512 MB, Python 3.12, 30s timeout |
-| **Compute: Worker**| `IsolateFacilitiesFunction` | `AWS::Serverless::Function` | Lambda GB-seconds + invocations | 256 MB, Python 3.12, 15s timeout |
-| **Compute: Worker**| `DispatchEmergencyAlertsFunction` | `AWS::Serverless::Function` | Lambda GB-seconds + invocations | 256 MB, Python 3.12, 15s timeout |
-| **Compute: Worker**| `LockPosRegistersFunction` | `AWS::Serverless::Function` | Lambda GB-seconds + invocations | 256 MB, Python 3.12, 15s timeout |
-| **Compute: Worker**| `HaltInTransitShipmentsFunction` | `AWS::Serverless::Function` | Lambda GB-seconds + invocations | 256 MB, Python 3.12, 15s timeout |
-| **Compute: Worker**| `NotifyRegulatorsFunction` | `AWS::Serverless::Function` | Lambda GB-seconds + invocations | 256 MB, Python 3.12, 15s timeout |
-| **Compute: Worker**| `VerifyQuarantineExecutionFunction` | `AWS::Serverless::Function` | Lambda GB-seconds + invocations | 256 MB, Python 3.12, 15s timeout |
-| **Compute: Worker**| `RecordAuditEntryFunction` | `AWS::Serverless::Function` | Lambda GB-seconds + invocations | 256 MB, Python 3.12, 15s timeout |
-| **Compute: Worker**| `EmitRecallEventFunction` | `AWS::Serverless::Function` | Lambda GB-seconds + invocations | 256 MB, Python 3.12, 15s timeout |
-| **Compute: Worker**| `ReleaseRecallLockFunction` | `AWS::Serverless::Function` | Lambda GB-seconds + invocations | 256 MB, Python 3.12, 15s timeout |
-| **Compute: Worker**| `NotifyRecallCancellationFunction` | `AWS::Serverless::Function` | Lambda GB-seconds + invocations | 256 MB, Python 3.12, 15s timeout |
-| **Compute: Worker**| `NotifyRecallRejectionFunction` | `AWS::Serverless::Function` | Lambda GB-seconds + invocations | 256 MB, Python 3.12, 15s timeout |
-| **Compute: Worker**| `NotifyRecallTimeoutFunction` | `AWS::Serverless::Function` | Lambda GB-seconds + invocations | 256 MB, Python 3.12, 15s timeout |
-| **Logging** | CloudWatch Log Groups (20) | `AWS::Logs::LogGroup` | Pay-per-GB ingested ($0.50/GB) | 30-day retention |
+| **Compute: API** | `BatchesFunction` | `AWS::Serverless::Function` | Lambda GB-seconds + invocations | `handlers.batch_handler.lambda_handler` (256 MB, 15s) |
+| **Compute: API** | `TraceabilityFunction`| `AWS::Serverless::Function` | Lambda GB-seconds + invocations | `handlers.traceability_handler.lambda_handler` (512 MB, 20s) |
+| **Compute: API** | `RecallsFunction` | `AWS::Serverless::Function` | Lambda GB-seconds + invocations | `handlers.recall_handler.lambda_handler` (256 MB, 15s) |
+| **Compute: API** | `SuppliersFunction` | `AWS::Serverless::Function` | Lambda GB-seconds + invocations | `handlers.supplier_handler.lambda_handler` (256 MB, 15s) |
+| **Compute: API** | `DistributionFunction`| `AWS::Serverless::Function` | Lambda GB-seconds + invocations | `handlers.distribution_handler.lambda_handler` (256 MB, 15s) |
+| **Compute: API** | `EvidenceFunction` | `AWS::Serverless::Function` | Lambda GB-seconds + invocations | `handlers.evidence_handler.lambda_handler` (256 MB, 15s) |
+| **Compute: API** | `AuditFunction` | `AWS::Serverless::Function` | Lambda GB-seconds + invocations | `handlers.audit_handler.lambda_handler` (256 MB, 15s) |
+| **Compute: Worker**| `ValidateRecallRequestWorker` | `AWS::Serverless::Function` | Lambda GB-seconds + invocations | `workers.validate_recall_request.lambda_handler` (256 MB, 15s) |
+| **Compute: Worker**| `CalculateBlastRadiusWorker` | `AWS::Serverless::Function` | Lambda GB-seconds + invocations | `workers.calculate_blast_radius.lambda_handler` (512 MB, 30s) |
+| **Compute: Worker**| `EvaluateRecallRiskWorker` | `AWS::Serverless::Function` | Lambda GB-seconds + invocations | `workers.evaluate_recall_risk.lambda_handler` (256 MB, 15s) |
+| **Compute: Worker**| `AwaitApprovalWorker` | `AWS::Serverless::Function` | Lambda GB-seconds + invocations | `workers.await_approval.lambda_handler` (256 MB, 15s) |
+| **Compute: Worker**| `CreateQuarantineTasksWorker` | `AWS::Serverless::Function` | Lambda GB-seconds + invocations | `workers.create_quarantine_tasks.lambda_handler` (256 MB, 15s) |
+| **Compute: Worker**| `IdentifyCarrierInterceptsWorker` | `AWS::Serverless::Function` | Lambda GB-seconds + invocations | `workers.identify_carrier_intercepts.lambda_handler` (256 MB, 15s) |
+| **Compute: Worker**| `DispatchNotificationsWorker` | `AWS::Serverless::Function` | Lambda GB-seconds + invocations | `workers.dispatch_notifications.lambda_handler` (256 MB, 15s) |
+| **Compute: Worker**| `TrackAcknowledgementsWorker` | `AWS::Serverless::Function` | Lambda GB-seconds + invocations | `workers.track_acknowledgements.lambda_handler` (256 MB, 15s) |
+| **Compute: Worker**| `RecordAuditEntryWorker` | `AWS::Serverless::Function` | Lambda GB-seconds + invocations | `workers.record_audit_entry.lambda_handler` (256 MB, 15s) |
+| **Compute: Worker**| `FinalizeRecallWorker` | `AWS::Serverless::Function` | Lambda GB-seconds + invocations | `workers.finalize_recall.lambda_handler` (256 MB, 15s) |
+| **Compute: Worker**| `HandleRejectionWorker` | `AWS::Serverless::Function` | Lambda GB-seconds + invocations | `workers.handle_rejection.lambda_handler` (256 MB, 15s) |
+| **Compute: Worker**| `HandleTimeoutWorker` | `AWS::Serverless::Function` | Lambda GB-seconds + invocations | `workers.handle_timeout.lambda_handler` (256 MB, 15s) |
+| **Compute: Worker**| `HandleFailureWorker` | `AWS::Serverless::Function` | Lambda GB-seconds + invocations | `workers.handle_failure.lambda_handler` (256 MB, 15s) |
+| **Logging** | CloudWatch Log Groups (20) | `AWS::Logs::LogGroup` | Pay-per-GB ingested ($0.50/GB standard) | 30-day retention |
 
 ---
 
-## 2. AWS Free Tier Allowances Applicable to BatchGuard
+## 2. Separation of Cost Assumptions
 
-1. **AWS Lambda:**
-   * 1,000,000 free requests per month.
-   * 3,200,000 seconds of compute time (at 128 MB) or 1,600,000 seconds (at 256 MB) or 800,000 seconds (at 512 MB).
-2. **Amazon API Gateway:**
-   * 1,000,000 REST API calls per month free for the first 12 months.
-3. **Amazon DynamoDB:**
-   * 25 GB of storage free.
-   * 25 WCU and 25 RCU under provisioned capacity, or ~2.5M read request units and ~1.0M write request units monthly on on-demand.
-4. **Amazon S3:**
-   * 5 GB standard storage, 20,000 GET requests, 2,000 PUT requests free for 12 months.
-5. **AWS Step Functions:**
-   * 4,000 free state transitions per month permanently.
-6. **Amazon SNS:**
-   * 1,000,000 Amazon SNS publishes free per month.
-   * 100,000 HTTP notifications, 1,000 email notifications free per month.
-7. **Amazon Cognito:**
-   * 50,000 Monthly Active Users (MAU) permanently free.
-8. **Amazon CloudWatch:**
-   * 5 GB log ingestion and 5 GB log archive free permanently.
+### 2.1 Verified Standard AWS Pricing (US East us-east-1, Standard Rates)
+*(Subject to AWS official pricing changes; verify before production billing).*
+* **AWS Lambda (x86_64):**
+  * \$0.20 per 1,000,000 requests.
+  * \$0.0000166667 per GB-second of compute.
+* **Amazon API Gateway (REST API):**
+  * \$3.50 per 1,000,000 calls (first 333M/month).
+* **Amazon DynamoDB (On-Demand):**
+  * \$0.25 per 1,000,000 write request units (WRU).
+  * \$0.05 per 1,000,000 read request units (RRU).
+  * \$0.25 per GB-month table storage.
+* **AWS Step Functions (Standard Workflow):**
+  * \$0.025 per 1,000 state transitions.
+* **Amazon S3 (Standard Storage):**
+  * \$0.023 per GB-month.
+  * \$0.005 per 1,000 PUT/POST requests.
+  * \$0.0004 per 1,000 GET requests.
+* **Amazon SNS (Standard):**
+  * First 1,000,000 Amazon SNS publishes/month free, then \$0.50 per 1,000,000.
+  * Email deliveries: \$2.00 per 100,000 emails (first 1,000/month free).
+  * SMS deliveries: Carrier-dependent (approx. \$0.0075 per SMS in US).
+* **Amazon Cognito:**
+  * Free for first 50,000 Monthly Active Users (MAU).
+
+### 2.2 Free Tier Eligibility & Boundaries
+* **Always Free:**
+  * Lambda: 1,000,000 requests and 400,000 GB-seconds per month.
+  * Step Functions: 4,000 state transitions per month.
+  * DynamoDB: 25 GB storage.
+  * Cognito: 50,000 MAU.
+  * CloudWatch Logs: 5 GB log ingestion and 5 GB archival.
+* **12 Months Free Tier (New Accounts):**
+  * API Gateway: 1,000,000 REST API requests per month.
+  * S3: 5 GB standard storage, 20,000 GETs, 2,000 PUTs.
+* **Promotional Credit Notice:**
+  * Projections below do NOT assume promotional credits. All calculations evaluate raw retail billing.
+
+### 2.3 Unknown or Account-Dependent Costs
+* **SMS Alerting:** If SMS is enabled on SNS topics, destination country rates vary (\$0.0075 to \$0.15/SMS).
+* **KMS Customer-Managed Keys (CMK):** If migrated from SSE-S3/DynamoDB default to KMS CMK, each key costs \$1.00/month + \$0.03/10,000 requests. BatchGuard currently uses default AWS-managed encryption (`SSEEnabled: true`, SSE-S3 AES-256) which incurs \$0.00 key fees.
+* **Data Transfer Out:** Data transfer to internet is free up to 100 GB/month.
 
 ---
 
-## 3. Projected Monthly Cost Breakdown
+## 3. Projected Monthly Workload Tiers (Provisional Estimates)
 
 ### Scenario A: True Idle Cost (Zero Active Users / Cold Standby)
 When no requests or active recalls are running:
-* **DynamoDB:** $0.00 (0 provisioned units, Pay-Per-Request, <25 GB storage).
-* **AWS Lambda:** $0.00 (0 invocations).
-* **API Gateway:** $0.00 (0 calls).
-* **Step Functions:** $0.00 (0 state transitions).
-* **Amazon S3:** $0.00 (<5 GB test files).
-* **Amazon SNS:** $0.00 (0 messages).
-* **Amazon Cognito:** $0.00 (<50,000 MAU).
-* **CloudWatch Logs:** ~$0.02 – $0.05/month (residual metric storage).
+* **DynamoDB:** \$0.00 (0 provisioned units, Pay-Per-Request, <25 GB storage).
+* **AWS Lambda:** \$0.00 (0 invocations).
+* **API Gateway:** \$0.00 (0 calls).
+* **Step Functions:** \$0.00 (0 state transitions).
+* **Amazon S3:** \$0.00 (<5 GB test files).
+* **Amazon SNS:** \$0.00 (0 messages).
+* **Amazon Cognito:** \$0.00 (<50,000 MAU).
+* **CloudWatch Logs:** ~\$0.02 – \$0.05 / month (residual metric storage).
 * **Estimated Monthly Total: \$0.02 – \$0.05 / month.**
-
----
 
 ### Scenario B: Low-Volume Testing & Dev QA (1,000 API calls/day, 10 recall workflows/month)
 * **API Gateway:** 30,000 calls/month = \$0.11 (covered by Free Tier in year 1, or \$0.11 without).
@@ -95,8 +116,6 @@ When no requests or active recalls are running:
 * **CloudWatch Logs:** ~100 MB logs = \$0.05.
 * **Estimated Monthly Total: \$0.15 – \$0.45 / month.**
 
----
-
 ### Scenario C: Active Demonstration & Moderate Workload (50,000 API calls/month, 100 recalls/month)
 * **API Gateway:** 50,000 calls = \$0.18.
 * **AWS Lambda:** 60,000 invocations @ 250ms = 3,750 GB-seconds = \$0.00 (within Free Tier) or \$0.06.
@@ -109,9 +128,11 @@ When no requests or active recalls are running:
 
 ---
 
-## 4. Cost Anomaly & Budget Protection Recommendations
+## 4. Cost-Control & Budget Protection Directives
 
-1. **AWS Budgets Alert:** Set a monthly billing alert at **\$5.00 USD** with an SNS notification to the DevOps distribution list.
-2. **Lambda Max Duration Bounds:** All API functions capped at 15s–20s; worker functions capped at 15s–30s to prevent runaway billable execution.
-3. **Step Functions Execution Timeout:** State machine configured with `TimeoutSeconds: 86400` (24h) and human gate timeout `TimeoutSeconds: 86400`, ensuring abandoned workflows terminate cleanly.
-4. **Log Retention Limits:** Enforce 30-day retention across all CloudWatch log groups to avoid perpetual log storage accumulation.
+1. **AWS Budgets Alert:** Deploy an AWS Cost Budget with a hard alert limit of **\$5.00 USD/month**, routing immediate SNS notifications to engineering leads when actual or forecasted spend exceeds 80% (\$4.00).
+2. **CloudWatch Log Retention:** Enforce strict 30-day retention policies on all 20 Lambda log groups in SAM / CloudFormation to prevent perpetual log accumulation charges.
+3. **DynamoDB On-Demand Safeguards:** The table uses Pay-Per-Request billing with no provisioned RCU/WCU floor. Do not switch to provisioned capacity unless sustained workloads exceed millions of daily steady-state requests.
+4. **Step Functions Transition Bounds:** All loops and retries in `recall_orchestrator.asl.json` are bounded (`MaxAttempts: 3`), preventing recursive execution cascades that multiply state transitions.
+5. **S3 Lifecycle Rules:** `EvidenceVaultBucket` defines lifecycle expiration rules to delete incomplete multipart uploads and transition non-current document versions after 30 days.
+6. **Resource Cleanup Runbook:** Clean dev teardown via `sam delete --stack-name batchguard-stack-dev` terminates all resources cleanly, avoiding orphaned billing components.

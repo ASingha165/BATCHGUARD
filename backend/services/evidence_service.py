@@ -1,5 +1,6 @@
 """Amazon S3 Evidence Vault service for secure document ingestion and pre-signed URLs."""
 
+import os
 import re
 import uuid
 from datetime import datetime, timezone
@@ -26,7 +27,11 @@ ALLOWED_MIME_TYPES = {
 
 def sanitize_filename(filename: str) -> str:
     """Strips directory traversal sequences and special characters from upload filenames."""
-    clean = re.sub(r"[^\w\.-]", "_", filename.strip())
+    # Strip path elements (e.g. ../ or /etc/)
+    base_name = os.path.basename(filename.replace("\\", "/").strip())
+    clean = re.sub(r"[^\w\.-]", "_", base_name)
+    clean = re.sub(r"^\.+", "", clean)  # remove leading dots
+    clean = clean.lstrip("_")
     return clean[:100] or "unnamed_document.pdf"
 
 

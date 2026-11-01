@@ -31,12 +31,25 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         client_org = query_params.get("orgId")
         enforce_tenant_boundary(auth, client_org)
 
-        # Route 1: GET /v1/audit/logs or /v1/audit-logs
+        # Route 1: GET /v1/audit/verify or /v1/audit/logs/verify
+        if http_method == "GET" and path.endswith("/verify"):
+            is_valid, errors = audit_service.verify_chain(org_id=auth.org_id)
+            return success_response(
+                data={
+                    "verified": is_valid,
+                    "errors": errors,
+                    "hashAlgorithm": "SHA-256",
+                    "orgId": auth.org_id,
+                },
+                request_id=request_id,
+            )
+
+        # Route 2: GET /v1/audit/logs or /v1/audit-logs
         if http_method == "GET":
             logs = audit_service.list_audit_events(org_id=auth.org_id)
             return success_response(data={"logs": logs}, request_id=request_id)
 
-        # Route 2: POST /v1/audit/logs
+        # Route 3: POST /v1/audit/logs
         if http_method == "POST":
             raw_body = json.loads(event.get("body") or "{}")
             req = RecordAuditLogRequest(**raw_body)

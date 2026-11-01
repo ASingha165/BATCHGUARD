@@ -323,23 +323,26 @@ def test_audit_log_cryptographic_tamper_detection(mock_db):
     original_signature = entry["cryptographicSignature"]
 
     # Recompute SHA-256 over exact canonical JSON
+    from backend.services.audit_service import compute_hash
     audit_content = {
         "auditId": entry["auditId"],
         "orgId": "ORG-APEX-GLOBAL",
         "timestamp": entry["timestamp"],
+        "sequenceNumber": entry.get("sequenceNumber"),
         "eventType": req.eventType,
         "actor": req.actor,
         "targetResource": req.targetResource,
         "actionSummary": req.actionSummary,
         "details": req.details,
+        "previousHash": entry.get("previousHash"),
     }
-    recomputed = "0x" + hashlib.sha256(json.dumps(audit_content, sort_keys=True).encode("utf-8")).hexdigest()
+    recomputed = compute_hash(audit_content)
     assert recomputed == original_signature
 
     # Tampering simulation: alter unitsAtRisk in details
     tampered_content = dict(audit_content)
     tampered_content["details"] = {"unitsAtRisk": 0}  # Altered data!
-    tampered_hash = "0x" + hashlib.sha256(json.dumps(tampered_content, sort_keys=True).encode("utf-8")).hexdigest()
+    tampered_hash = compute_hash(tampered_content)
 
     # Hash mismatch proves tamper-evident property
     assert tampered_hash != original_signature
