@@ -2,22 +2,47 @@ import React, { useEffect, useState } from 'react';
 import { apiService } from '../services/api';
 import { RecallIncident, RecallAcknowledgement, BlastRadiusAssessment } from '../types';
 import { Button } from '../components/common/Button';
+import { useToast } from '../components/common/Toast';
 
 export const RecallOpsPage: React.FC = () => {
+  const { addToast } = useToast();
   const [recalls, setRecalls] = useState<RecallIncident[]>([]);
   const [acknowledgements, setAcknowledgements] = useState<RecallAcknowledgement[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [wizardStep, setWizardStep] = useState(3);
+  const [wizardStep, setWizardStep] = useState(1);
   const [blastRadius, setBlastRadius] = useState<BlastRadiusAssessment | null>(null);
+
+  // Form states for Wizard
+  const [selectedBatchId, setSelectedBatchId] = useState('BG-2024-8891-ORG');
+  const [selectedHazardClass, setSelectedHazardClass] = useState('CLASS_I_CRITICAL');
+  const [incidentReason, setIncidentReason] = useState('Listeria Monocytogenes Detection in Lot 902-A');
   const [confirmationInput, setConfirmationInput] = useState('');
+  const [otpToken, setOtpToken] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [notificationSuccess, setNotificationSuccess] = useState(false);
+
+  // Live Containment Timer simulation
+  const [secondsElapsed, setSecondsElapsed] = useState(6135); // ~1h 42m 15s
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setSecondsElapsed((prev) => prev + 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const formatTimer = (totalSeconds: number) => {
+    const h = Math.floor(totalSeconds / 3600).toString().padStart(2, '0');
+    const m = Math.floor((totalSeconds % 3600) / 60).toString().padStart(2, '0');
+    const s = (totalSeconds % 60).toString().padStart(2, '0');
+    return `${h}h : ${m}m : ${s}s elapsed`;
+  };
 
   useEffect(() => {
     async function loadRecallData() {
       const [recList, blastData] = await Promise.all([
         apiService.getRecalls(),
-        apiService.assessBlastRadius('BG-2024-8891-ORG'),
+        apiService.assessBlastRadius(selectedBatchId),
       ]);
       setRecalls(recList);
       setBlastRadius(blastData);
@@ -27,29 +52,64 @@ export const RecallOpsPage: React.FC = () => {
       }
     }
     loadRecallData();
-  }, []);
+  }, [selectedBatchId]);
 
-  const handleInitiateRecall = async () => {
-    if (confirmationInput !== 'CONFIRM-RECALL-BG-2024-8891-ORG') {
-      alert('Please type the exact confirmation phrase to proceed.');
+  const handleSimulateBroadcast = async () => {
+    const expectedPhrase = `CONFIRM-RECALL-${selectedBatchId}`;
+    if (confirmationInput.trim() !== expectedPhrase) {
+      addToast({
+        type: 'error',
+        title: 'Confirmation Phrase Mismatch',
+        description: `Please enter '${expectedPhrase}' exactly to authorize recall.`,
+      });
+      return;
+    }
+
+    if (!/^\d{6}$/.test(otpToken)) {
+      addToast({
+        type: 'error',
+        title: 'Invalid 2FA Token',
+        description: 'Please enter a valid 6-digit numeric security token.',
+      });
       return;
     }
 
     setIsSubmitting(true);
     try {
-      const newRecall = await apiService.initiateRecall({
-        batchId: 'BG-2024-8891-ORG',
-        hazardClass: 'CLASS_I_CRITICAL',
-        reason: 'Listeria Monocytogenes Detection in Lot 902-A',
-        confirmationPhrase: confirmationInput,
-        auth2FAToken: '882910',
-      });
-      setRecalls((prev) => [newRecall, ...prev]);
+      // Simulate recall initiation (Client-side simulation placeholder)
+      const simulatedRecall: RecallIncident = {
+        recallId: `REC-${Date.now().toString().slice(-4)}`,
+        batchId: selectedBatchId,
+        lotNumber: 'L-8891-A',
+        gtin: '00850012345678',
+        productName: 'Organic Baby Spinach 16oz',
+        hazardClass: selectedHazardClass as any,
+        reason: incidentReason,
+        severity: 'CRITICAL',
+        totalUnitsAtRisk: blastRadius?.totalUnitsAtRisk || 6200,
+        totalUnitsIsolated: 5800,
+        isolationPercentage: 93.5,
+        impactedNodesCount: blastRadius?.impactedNodes.length || 48,
+        status: 'INITIATED',
+        containmentWindowHours: 0.1,
+        initiatedBy: 'elena.vance@apexnutrition.internal',
+        initiatedAt: new Date().toISOString(),
+      };
+
+      setRecalls((prev) => [simulatedRecall, ...prev]);
       setNotificationSuccess(true);
+      addToast({
+        type: 'success',
+        title: 'Targeted Recall Broadcasted',
+        description: `AWS Step Functions state machine execution started for ${selectedBatchId}.`,
+      });
+
       setTimeout(() => {
         setIsModalOpen(false);
         setNotificationSuccess(false);
+        setWizardStep(1);
         setConfirmationInput('');
+        setOtpToken('');
       }, 2500);
     } finally {
       setIsSubmitting(false);
@@ -61,7 +121,7 @@ export const RecallOpsPage: React.FC = () => {
   return (
     <div className="flex flex-col w-full">
       {/* Sub-Header Command Bar */}
-      <div className="px-margin py-space-lg bg-surface-container-low shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-space-md border-b border-surface-container">
+      <div className="px-space-md sm:px-margin py-space-lg bg-surface-container-low shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-space-md border-b border-surface-container">
         <div className="flex flex-col">
           <div className="flex items-center gap-space-xs mb-space-xs">
             <span className="px-space-xs py-0.5 rounded-full bg-error-container text-on-error-container font-label-sm text-label-sm tracking-widest uppercase flex items-center gap-1.5 font-bold">
@@ -79,23 +139,33 @@ export const RecallOpsPage: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-space-sm flex-wrap sm:flex-nowrap">
-          <Button variant="secondary" icon="support_agent">
+          <Button
+            variant="secondary"
+            icon="support_agent"
+            onClick={() => addToast({ type: 'info', title: 'Emergency Bridge Active', description: 'Conference bridge dialed: +1 (800) 555-SAFE (ID: 902-A).' })}
+          >
             Emergency Hotline Bridge
           </Button>
           <Button
             variant="critical"
             icon="gpp_maybe"
-            onClick={() => setIsModalOpen(true)}
+            onClick={() => {
+              setWizardStep(1);
+              setIsModalOpen(true);
+            }}
           >
             + Initiate Targeted Recall
           </Button>
         </div>
       </div>
 
-      <div className="p-margin flex flex-col gap-space-lg">
+      <div className="p-space-md sm:p-margin flex flex-col gap-space-lg">
         {/* Critical Incident Alert Banner */}
         {activeRecall && (
           <div className="rounded-xl p-space-md bg-error text-on-error shadow-md flex flex-col md:flex-row md:items-center justify-between gap-space-md relative overflow-hidden">
+            <div className="absolute -right-6 -bottom-8 opacity-10 pointer-events-none">
+              <span className="material-symbols-outlined text-[160px]">shield_with_heart</span>
+            </div>
             <div className="flex items-start md:items-center gap-space-md z-10">
               <div className="w-10 h-10 rounded-full bg-on-error/20 flex items-center justify-center shrink-0">
                 <span className="material-symbols-outlined text-[24px]">crisis_alert</span>
@@ -117,9 +187,14 @@ export const RecallOpsPage: React.FC = () => {
             <div className="flex items-center gap-space-sm z-10 shrink-0">
               <div className="bg-black/20 px-space-md py-1.5 rounded-lg flex flex-col items-end">
                 <span className="font-label-sm text-label-sm uppercase tracking-wider opacity-80">Containment Window</span>
-                <span className="font-data-mono text-data-mono font-bold">01h : 42m elapsed</span>
+                <span className="font-data-mono text-data-mono font-bold">{formatTimer(secondsElapsed)}</span>
               </div>
-              <Button variant="secondary" size="sm" icon="receipt_long">
+              <Button
+                variant="secondary"
+                size="sm"
+                icon="receipt_long"
+                onClick={() => addToast({ type: 'info', title: 'Audit Ledger Stream', description: 'Displaying real-time cryptographic audit trail on Amazon CloudWatch.' })}
+              >
                 Live Audit Log
               </Button>
             </div>
@@ -128,6 +203,7 @@ export const RecallOpsPage: React.FC = () => {
 
         {/* KPI Summary Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-space-md">
+          {/* KPI 1 */}
           <div className="p-space-lg rounded-xl bg-surface-container-lowest shadow-sm border border-surface-container flex flex-col justify-between">
             <div className="flex items-center justify-between">
               <span className="font-label-md text-label-md text-outline">Active Recalls</span>
@@ -144,6 +220,7 @@ export const RecallOpsPage: React.FC = () => {
             </div>
           </div>
 
+          {/* KPI 2 */}
           <div className="p-space-lg rounded-xl bg-surface-container-lowest shadow-sm border border-surface-container flex flex-col justify-between">
             <div className="flex items-center justify-between">
               <span className="font-label-md text-label-md text-outline">Units at Risk</span>
@@ -160,6 +237,7 @@ export const RecallOpsPage: React.FC = () => {
             </div>
           </div>
 
+          {/* KPI 3 */}
           <div className="p-space-lg rounded-xl bg-surface-container-lowest shadow-sm border border-surface-container flex flex-col justify-between">
             <div className="flex items-center justify-between">
               <span className="font-label-md text-label-md text-outline">Node Acknowledgment Rate</span>
@@ -172,10 +250,11 @@ export const RecallOpsPage: React.FC = () => {
               <span className="font-label-sm text-label-sm text-secondary font-semibold">44 of 48 nodes</span>
             </div>
             <div className="w-full bg-surface-container rounded-full h-1.5 overflow-hidden">
-              <div className="bg-secondary h-full rounded-full" style={{ width: '91.7%' }} />
+              <div className="bg-secondary h-full rounded-full transition-all duration-500" style={{ width: '91.7%' }} />
             </div>
           </div>
 
+          {/* KPI 4 */}
           <div className="p-space-lg rounded-xl bg-surface-container-lowest shadow-sm border border-surface-container flex flex-col justify-between">
             <div className="flex items-center justify-between">
               <span className="font-label-md text-label-md text-outline">Containment Velocity</span>
@@ -192,6 +271,51 @@ export const RecallOpsPage: React.FC = () => {
               <span className="text-secondary font-semibold">60% Faster</span>
             </div>
           </div>
+        </div>
+
+        {/* Crisis Command Actions Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-space-md">
+          <button
+            onClick={() => addToast({ type: 'warning', title: 'Emergency SMS/Webhook Re-Dispatched', description: '10 non-responsive facility managers pinged with high-priority hold commands.' })}
+            className="p-space-md rounded-xl bg-surface-container-lowest border border-surface-container hover:bg-surface-container-low text-left flex items-start gap-space-sm transition-all shadow-sm"
+            type="button"
+          >
+            <div className="w-10 h-10 rounded-lg bg-error-container text-on-error-container flex items-center justify-center shrink-0">
+              <span className="material-symbols-outlined text-[20px]">cell_tower</span>
+            </div>
+            <div className="flex flex-col">
+              <span className="font-label-md text-label-md text-on-surface font-bold">Broadcast SMS / Webhook Blast</span>
+              <span className="font-body-sm text-body-sm text-outline mt-0.5">Re-ping 10 non-responsive facility managers</span>
+            </div>
+          </button>
+
+          <button
+            onClick={() => addToast({ type: 'info', title: 'Field Auditor Assigned', description: 'Third-party FDA compliance auditor dispatched to Northeast Logistics Hub.' })}
+            className="p-space-md rounded-xl bg-surface-container-lowest border border-surface-container hover:bg-surface-container-low text-left flex items-start gap-space-sm transition-all shadow-sm"
+            type="button"
+          >
+            <div className="w-10 h-10 rounded-lg bg-surface-container-high text-tertiary flex items-center justify-center shrink-0">
+              <span className="material-symbols-outlined text-[20px]">person_pin_circle</span>
+            </div>
+            <div className="flex flex-col">
+              <span className="font-label-md text-label-md text-on-surface font-bold">Dispatch Field Inspector</span>
+              <span className="font-body-sm text-body-sm text-outline mt-0.5">Assign certified quality auditor to Scranton DC</span>
+            </div>
+          </button>
+
+          <button
+            onClick={() => addToast({ type: 'success', title: 'Bio-Disposal Order Approved', description: 'Witnessed bio-destruction protocol scheduled for quarantined spinach cases.' })}
+            className="p-space-md rounded-xl bg-surface-container-lowest border border-surface-container hover:bg-surface-container-low text-left flex items-start gap-space-sm transition-all shadow-sm"
+            type="button"
+          >
+            <div className="w-10 h-10 rounded-lg bg-primary-fixed text-on-primary-fixed flex items-center justify-center shrink-0">
+              <span className="material-symbols-outlined text-[20px]">delete_forever</span>
+            </div>
+            <div className="flex flex-col">
+              <span className="font-label-md text-label-md text-on-surface font-bold">Approve Bio-Disposal Order</span>
+              <span className="font-body-sm text-body-sm text-outline mt-0.5">Schedule witnessed destruction and incineration</span>
+            </div>
+          </button>
         </div>
 
         {/* Facility Quarantine Ledger Table */}
@@ -263,7 +387,7 @@ export const RecallOpsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* 4-Step Targeted Recall Wizard Modal (Exact Stitch Design) */}
+      {/* 4-Step Targeted Recall Wizard Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 bg-inverse-surface/40 backdrop-blur-sm flex items-center justify-center p-space-md sm:p-margin transition-opacity">
           <div className="w-full max-w-4xl bg-surface-container-lowest rounded-xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden border border-surface-container">
@@ -283,7 +407,10 @@ export const RecallOpsPage: React.FC = () => {
                     </span>
                   </div>
                   <span className="font-body-sm text-body-sm text-outline">
-                    Review Downstream Blast Radius &amp; Automated EDI Commands
+                    {wizardStep === 1 && 'Select Target Food Batch & Production Lot'}
+                    {wizardStep === 2 && 'Classify Safety Hazard Severity & Pathogen'}
+                    {wizardStep === 3 && 'Review Downstream Blast Radius & Automated EDI Commands'}
+                    {wizardStep === 4 && 'Authorize with Cryptographic Signature & Two-Factor Authentication'}
                   </span>
                 </div>
               </div>
@@ -298,36 +425,43 @@ export const RecallOpsPage: React.FC = () => {
 
             {/* 4-Step Process Progress Bar */}
             <div className="px-space-lg py-space-sm bg-surface-container-lowest grid grid-cols-4 gap-space-xs border-b border-surface-container">
-              <div className="flex items-center gap-space-xs">
-                <div className="w-6 h-6 rounded-full bg-secondary text-on-secondary font-label-sm text-label-sm flex items-center justify-center font-bold">✓</div>
+              <div className={`flex items-center gap-space-xs cursor-pointer ${wizardStep === 1 ? 'font-bold' : ''}`} onClick={() => setWizardStep(1)}>
+                <div className={`w-6 h-6 rounded-full ${wizardStep >= 1 ? 'bg-secondary text-on-secondary' : 'bg-surface-container-high'} font-label-sm text-label-sm flex items-center justify-center font-bold`}>
+                  {wizardStep > 1 ? '✓' : '1'}
+                </div>
                 <div className="flex flex-col min-w-0">
                   <span className="font-label-sm text-label-sm font-semibold text-on-surface truncate">1. Batch Select</span>
-                  <span className="font-data-mono-sm text-data-mono-sm text-secondary truncate">BG-8891-ORG</span>
+                  <span className="font-data-mono-sm text-data-mono-sm text-secondary truncate">{selectedBatchId}</span>
                 </div>
               </div>
-              <div className="flex items-center gap-space-xs">
-                <div className="w-6 h-6 rounded-full bg-secondary text-on-secondary font-label-sm text-label-sm flex items-center justify-center font-bold">✓</div>
+
+              <div className={`flex items-center gap-space-xs cursor-pointer ${wizardStep === 2 ? 'font-bold' : ''}`} onClick={() => setWizardStep(2)}>
+                <div className={`w-6 h-6 rounded-full ${wizardStep >= 2 ? 'bg-secondary text-on-secondary' : 'bg-surface-container-high'} font-label-sm text-label-sm flex items-center justify-center font-bold`}>
+                  {wizardStep > 2 ? '✓' : '2'}
+                </div>
                 <div className="flex flex-col min-w-0">
                   <span className="font-label-sm text-label-sm font-semibold text-on-surface truncate">2. Hazard Class</span>
                   <span className="font-data-mono-sm text-data-mono-sm text-error truncate">Class I (Bio)</span>
                 </div>
               </div>
-              <div className="flex items-center gap-space-xs">
-                <div className={`w-6 h-6 rounded-full ${wizardStep === 3 ? 'bg-primary text-on-primary' : 'bg-secondary text-on-secondary'} font-label-sm text-label-sm flex items-center justify-center font-bold`}>
-                  {wizardStep === 4 ? '✓' : '3'}
+
+              <div className={`flex items-center gap-space-xs cursor-pointer ${wizardStep === 3 ? 'font-bold' : ''}`} onClick={() => setWizardStep(3)}>
+                <div className={`w-6 h-6 rounded-full ${wizardStep >= 3 ? 'bg-primary text-on-primary' : 'bg-surface-container-high'} font-label-sm text-label-sm flex items-center justify-center font-bold`}>
+                  {wizardStep > 3 ? '✓' : '3'}
                 </div>
                 <div className="flex flex-col min-w-0">
                   <span className="font-label-sm text-label-sm font-bold text-primary truncate">3. Impacted Nodes</span>
                   <span className="font-data-mono-sm text-data-mono-sm text-on-surface truncate">48 Endpoints</span>
                 </div>
               </div>
-              <div className={`flex items-center gap-space-xs ${wizardStep === 4 ? 'opacity-100' : 'opacity-40'}`}>
+
+              <div className={`flex items-center gap-space-xs cursor-pointer ${wizardStep === 4 ? 'opacity-100 font-bold' : 'opacity-50'}`} onClick={() => setWizardStep(4)}>
                 <div className={`w-6 h-6 rounded-full ${wizardStep === 4 ? 'bg-primary text-on-primary' : 'bg-surface-container-high text-on-surface-variant'} font-label-sm text-label-sm flex items-center justify-center font-bold`}>
                   4
                 </div>
                 <div className="flex flex-col min-w-0">
                   <span className="font-label-sm text-label-sm font-semibold text-on-surface truncate">4. Crypto Auth</span>
-                  <span className="font-data-mono-sm text-data-mono-sm text-outline truncate">2FA Required</span>
+                  <span className="font-data-mono-sm text-data-mono-sm text-outline truncate">MFA Required</span>
                 </div>
               </div>
             </div>
@@ -346,9 +480,92 @@ export const RecallOpsPage: React.FC = () => {
                     AWS Step Functions execution initiated. 48 facilities notified via SNS fan-out, POS scan-block active, and immutable audit record sealed.
                   </p>
                 </div>
+              ) : wizardStep === 1 ? (
+                /* Step 1: Batch Select */
+                <div className="flex flex-col gap-space-md">
+                  <div className="flex flex-col gap-1">
+                    <label className="font-label-md text-label-md font-semibold text-on-surface">Target Food Batch</label>
+                    <select
+                      value={selectedBatchId}
+                      onChange={(e) => setSelectedBatchId(e.target.value)}
+                      className="h-10 px-3 rounded-lg border border-surface-container bg-surface-container-lowest font-data-mono text-on-surface outline-none focus:border-primary"
+                    >
+                      <option value="BG-2024-8891-ORG">BG-2024-8891-ORG (Organic Baby Spinach 16oz)</option>
+                      <option value="BG-2024-9022-ROM">BG-2024-9022-ROM (Crisp Romaine Hearts 3pk)</option>
+                      <option value="BG-2024-7719-BER">BG-2024-7719-BER (Fresh Organic Strawberries 1lb)</option>
+                    </select>
+                  </div>
+
+                  <div className="p-space-md rounded-xl bg-surface-container-low border border-surface-container flex flex-col gap-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-sm text-on-surface">Batch Details Preview</span>
+                      <span className="font-data-mono-sm text-xs text-primary font-bold">GTIN: 00850012345678</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-xs text-outline">
+                      <div>Product: <strong className="text-on-surface">Organic Baby Spinach 16oz</strong></div>
+                      <div>Lot Code: <strong className="text-on-surface">L-8891-A</strong></div>
+                      <div>Initial Harvest: <strong className="text-on-surface">Oct 12, 2024</strong></div>
+                      <div>Custody Status: <strong className="text-secondary">In Transit (Reefer #402)</strong></div>
+                    </div>
+                  </div>
+                </div>
+              ) : wizardStep === 2 ? (
+                /* Step 2: Hazard Severity Classification */
+                <div className="flex flex-col gap-space-md">
+                  <div className="flex flex-col gap-2">
+                    <label className="font-label-md text-label-md font-semibold text-on-surface">Hazard Severity Classification</label>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-space-sm">
+                      <div
+                        onClick={() => setSelectedHazardClass('CLASS_I_CRITICAL')}
+                        className={`p-3 rounded-xl border cursor-pointer flex flex-col gap-1 transition-all ${
+                          selectedHazardClass === 'CLASS_I_CRITICAL'
+                            ? 'bg-error-container/40 border-error text-error'
+                            : 'bg-surface-container-lowest border-surface-container text-on-surface'
+                        }`}
+                      >
+                        <span className="font-bold text-xs uppercase">Class I Critical</span>
+                        <span className="text-xs opacity-90">Microbial / Pathogen (Life-threatening)</span>
+                      </div>
+
+                      <div
+                        onClick={() => setSelectedHazardClass('CLASS_II')}
+                        className={`p-3 rounded-xl border cursor-pointer flex flex-col gap-1 transition-all ${
+                          selectedHazardClass === 'CLASS_II'
+                            ? 'bg-amber-100 border-amber-600 text-amber-900'
+                            : 'bg-surface-container-lowest border-surface-container text-on-surface'
+                        }`}
+                      >
+                        <span className="font-bold text-xs uppercase">Class II Moderate</span>
+                        <span className="text-xs opacity-90">Temporary or medically reversible</span>
+                      </div>
+
+                      <div
+                        onClick={() => setSelectedHazardClass('CLASS_III')}
+                        className={`p-3 rounded-xl border cursor-pointer flex flex-col gap-1 transition-all ${
+                          selectedHazardClass === 'CLASS_III'
+                            ? 'bg-sky-100 border-sky-600 text-sky-900'
+                            : 'bg-surface-container-lowest border-surface-container text-on-surface'
+                        }`}
+                      >
+                        <span className="font-bold text-xs uppercase">Class III Advisory</span>
+                        <span className="text-xs opacity-90">Labeling or technical packaging defect</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-1">
+                    <label className="font-label-md text-label-md font-semibold text-on-surface">Incident Description &amp; Lab Report Summary</label>
+                    <textarea
+                      rows={3}
+                      value={incidentReason}
+                      onChange={(e) => setIncidentReason(e.target.value)}
+                      className="p-3 rounded-lg border border-surface-container bg-surface-container-lowest text-on-surface font-body-sm outline-none focus:border-primary"
+                    />
+                  </div>
+                </div>
               ) : wizardStep === 3 ? (
+                /* Step 3: Blast Radius Review */
                 <>
-                  {/* Impact Summary Callout */}
                   <div className="p-space-md rounded-xl bg-error-container/30 border border-error-container flex items-start gap-space-md">
                     <span className="material-symbols-outlined text-error text-[28px] shrink-0 mt-0.5">report_problem</span>
                     <div className="flex flex-col">
@@ -361,7 +578,6 @@ export const RecallOpsPage: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Impacted Nodes Table */}
                   <div className="flex flex-col gap-space-xs">
                     <div className="flex items-center justify-between">
                       <span className="font-label-md text-label-md font-semibold text-on-surface">
@@ -399,7 +615,6 @@ export const RecallOpsPage: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Compliance Verification Checklist */}
                   <div className="p-space-md rounded-xl bg-surface-container-low flex flex-col gap-space-xs border border-surface-container">
                     <span className="font-label-sm text-label-sm text-outline uppercase tracking-wider font-semibold">Compliance Assurance Checks</span>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-space-sm pt-space-xs">
@@ -413,7 +628,7 @@ export const RecallOpsPage: React.FC = () => {
                   </div>
                 </>
               ) : (
-                /* Step 4: Cryptographic Confirmation & 2FA */
+                /* Step 4: Cryptographic Confirmation & Two-Factor Authentication */
                 <div className="flex flex-col gap-space-md">
                   <div className="p-space-md rounded-xl bg-amber-50 border border-amber-200 flex items-start gap-space-md">
                     <span className="material-symbols-outlined text-amber-700 text-[28px] shrink-0">verified_user</span>
@@ -429,27 +644,32 @@ export const RecallOpsPage: React.FC = () => {
 
                   <div className="flex flex-col gap-space-xs">
                     <label className="font-label-md text-label-md font-semibold text-on-surface">
-                      Confirmation Phrase: <span className="font-data-mono font-bold text-error">CONFIRM-RECALL-BG-2024-8891-ORG</span>
+                      Confirmation Phrase: <span className="font-data-mono font-bold text-error">CONFIRM-RECALL-{selectedBatchId}</span>
                     </label>
                     <input
                       type="text"
                       value={confirmationInput}
                       onChange={(e) => setConfirmationInput(e.target.value)}
-                      placeholder="Type confirmation phrase exactly..."
+                      placeholder={`Type CONFIRM-RECALL-${selectedBatchId} exactly...`}
                       className="h-[38px] px-space-sm rounded-lg border border-surface-container bg-surface-container-lowest font-data-mono text-on-surface focus:border-error focus:ring-1 focus:ring-error outline-none"
                     />
                   </div>
 
                   <div className="flex flex-col gap-space-xs">
                     <label className="font-label-md text-label-md font-semibold text-on-surface">
-                      Emergency 2FA Security Token (Demo: 882910)
+                      Security Multi-Factor Authentication Token (6 digits)
                     </label>
                     <input
                       type="text"
-                      defaultValue="882910"
-                      className="h-[38px] px-space-sm rounded-lg border border-surface-container bg-surface-container-low font-data-mono text-outline"
-                      readOnly
+                      maxLength={6}
+                      value={otpToken}
+                      onChange={(e) => setOtpToken(e.target.value)}
+                      placeholder="e.g. 123456"
+                      className="h-[38px] px-space-sm rounded-lg border border-surface-container bg-surface-container-lowest font-data-mono text-on-surface focus:border-primary outline-none"
                     />
+                    <span className="font-body-sm text-xs text-outline mt-1">
+                      [Integration Placeholder: In production, a cryptographically signed MFA token is verified via AWS Cognito. Enter any 6-digit numeric code to simulate authorization.]
+                    </span>
                   </div>
                 </div>
               )}
@@ -465,29 +685,30 @@ export const RecallOpsPage: React.FC = () => {
               </Button>
 
               <div className="flex items-center gap-space-sm">
-                {wizardStep === 4 && (
+                {wizardStep > 1 && (
                   <Button
                     variant="secondary"
-                    onClick={() => setWizardStep(3)}
+                    onClick={() => setWizardStep((prev) => prev - 1)}
                   >
-                    Back to Blast Radius
+                    Back
                   </Button>
                 )}
-                {wizardStep === 3 ? (
+
+                {wizardStep < 4 ? (
                   <Button
-                    variant="critical"
-                    icon="notification_important"
-                    onClick={() => setWizardStep(4)}
+                    variant="primary"
+                    icon="arrow_forward"
+                    onClick={() => setWizardStep((prev) => prev + 1)}
                   >
-                    Proceed to Authorization &amp; 2FA
+                    Proceed to Step {wizardStep + 1}
                   </Button>
                 ) : (
                   <Button
                     variant="critical"
                     icon="emergency"
                     isLoading={isSubmitting}
-                    disabled={confirmationInput !== 'CONFIRM-RECALL-BG-2024-8891-ORG'}
-                    onClick={handleInitiateRecall}
+                    disabled={confirmationInput !== `CONFIRM-RECALL-${selectedBatchId}` || otpToken.length !== 6}
+                    onClick={handleSimulateBroadcast}
                   >
                     Broadcast Emergency Recall
                   </Button>
@@ -500,4 +721,3 @@ export const RecallOpsPage: React.FC = () => {
     </div>
   );
 };
-
