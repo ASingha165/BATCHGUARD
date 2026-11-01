@@ -346,3 +346,136 @@ def test_audit_log_cryptographic_tamper_detection(mock_db):
 
     # Hash mismatch proves tamper-evident property
     assert tampered_hash != original_signature
+
+
+def test_audit_verify_unauthenticated_rejected_in_prod(monkeypatch):
+    """In production environment, unauthenticated audit verification requests return 401."""
+    from backend.handlers import audit_handler
+    monkeypatch.setenv("ENVIRONMENT", "production")
+
+    event = {
+        "httpMethod": "GET",
+        "path": "/v1/audit/verify",
+        "headers": {},
+        "requestContext": {},
+    }
+    res = audit_handler.lambda_handler(event, None)
+    assert res["statusCode"] == 401
+    body = json.loads(res["body"])
+    assert body["error"]["code"] == "UNAUTHORIZED"
+
+
+def test_audit_verify_unauthorized_role_rejected(monkeypatch):
+    """Callers without auditor or compliance roles are rejected with 403 FORBIDDEN."""
+    from backend.handlers import audit_handler
+    monkeypatch.setenv("ENVIRONMENT", "production")
+
+    event = {
+        "httpMethod": "GET",
+        "path": "/v1/audit/verify",
+        "headers": {},
+        "requestContext": {
+            "authorizer": {
+                "claims": {
+                    "sub": "user-guest",
+                    "email": "guest@apex.com",
+                    "custom:org_id": "ORG-APEX-GLOBAL",
+                    "cognito:groups": "WAREHOUSE_STAFF,GUEST",
+                }
+            }
+        },
+    }
+    res = audit_handler.lambda_handler(event, None)
+    assert res["statusCode"] == 403
+    body = json.loads(res["body"])
+    assert body["error"]["code"] == "FORBIDDEN"
+
+
+def test_audit_verify_authorized_compliance_officer_success(monkeypatch):
+    """Callers with COMPLIANCE_OFFICER or AUDITOR role succeed."""
+    from backend.handlers import audit_handler
+    monkeypatch.setenv("ENVIRONMENT", "production")
+    monkeypatch.setattr(audit_handler.audit_service, "verify_chain", lambda org_id, limit: (True, []))
+
+    event = {
+        "httpMethod": "GET",
+        "path": "/v1/audit/verify",
+        "headers": {},
+        "requestContext": {
+            "authorizer": {
+                "claims": {
+                    "sub": "user-officer",
+                    "email": "officer@apex.com",
+                    "custom:org_id": "ORG-APEX-GLOBAL",
+                    "cognito:groups": "COMPLIANCE_OFFICER",
+                }
+            }
+        },
+    }
+    res = audit_handler.lambda_handler(event, None)
+    assert res["statusCode"] == 200
+    body = json.loads(res["body"])
+    assert body["data"]["verified"] is True
+    assert body["data"]["orgId"] == "ORG-APEX-GLOBAL"
+
+
+def test_audit_verify_cross_tenant_rejected(monkeypatch):
+    """Cross-tenant query parameter tampering is rejected with 403 FORBIDDEN."""
+    from backend.handlers import audit_handler
+    monkeypatch.setenv("ENVIRONMENT", "production")
+
+    event = {
+        "httpMethod": "GET",
+        "path": "/v1/audit/verify",
+        "queryStringParameters": {"orgId": "ORG-ATTACKER-TENANT"},
+        "headers": {},
+        "requestContext": {
+            "authorizer": {
+                "claims": {
+                    "sub": "user-officer",
+                    "email": "officer@apex.com",
+                    "custom:org_id": "ORG-APEX-GLOBAL",
+                    "cognito:groups": "COMPLIANCE_OFFICER",
+                }
+            }
+        },
+    }
+    res = audit_handler.lambda_handler(event, None)
+    assert res["statusCode"] == 403
+    body = json.loads(res["body"])
+    assert body["error"]["code"] == "FORBIDDEN"
+    assert "Cross-tenant access forbidden" in body["error"]["message"]
+
+
+def test_audit_verify_bounded_limit_enforced(monkeypatch):
+    """Verification limit parameter is strictly bounded to prevent resource exhaustion."""
+    from backend.handlers import audit_handler
+    monkeypatch.setenv("ENVIRONMENT", "production")
+    passed_limit = None
+
+    def fake_verify_chain(org_id, limit):
+        nonlocal passed_limit
+        passed_limit = limit
+        return True, []
+
+    monkeypatch.setattr(audit_handler.audit_service, "verify_chain", fake_verify_chain)
+
+    event = {
+        "httpMethod": "GET",
+        "path": "/v1/audit/verify",
+        "queryStringParameters": {"limit": "9999999"},
+        "headers": {},
+        "requestContext": {
+            "authorizer": {
+                "claims": {
+                    "sub": "user-auditor",
+                    "email": "auditor@apex.com",
+                    "custom:org_id": "ORG-APEX-GLOBAL",
+                    "cognito:groups": "AUDITOR",
+                }
+            }
+        },
+    }
+    res = audit_handler.lambda_handler(event, None)
+    assert res["statusCode"] == 200
+    assert passed_limit == 1000, "Limit must be capped at 1000 to prevent denial-of-service"

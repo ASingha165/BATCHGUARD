@@ -6,6 +6,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 import boto3
+from boto3.dynamodb.types import TypeSerializer
 from backend.common.config import config
 from backend.common.db import DynamoDBClient, db_client
 from backend.common.exceptions import (
@@ -20,6 +21,10 @@ from backend.models.schemas import AcknowledgeRecallRequest, InitiateRecallReque
 from backend.services.traceability_engine import TraceabilityEngine, traceability_engine
 
 logger = get_logger("batchguard.services.recall")
+_serializer = TypeSerializer()
+
+def serialize_for_tx(item: Dict[str, Any]) -> Dict[str, Any]:
+    return {k: _serializer.serialize(v) for k, v in item.items()}
 
 VALID_RECALL_TRANSITIONS: Dict[str, set] = {
     "DRAFT": {"ASSESSING", "CANCELLED"},
@@ -376,14 +381,42 @@ class RecallService:
         if reason:
             updated["statusReason"] = reason
 
-        self.db.put_item(updated)
+        table_name = getattr(self.db, "table_name", config.dynamodb_table_name)
 
-        # Release atomic active recall lock on terminal state transitions
+        # If terminal transition, execute atomic transaction to update status AND release active recall lock
         if target_status in {"REJECTED", "COMPLETED", "FAILED", "CANCELLED"}:
+            tx_items = [
+                {
+                    "Put": {
+                        "TableName": table_name,
+                        "Item": serialize_for_tx(updated),
+                        "ConditionExpression": "status = :curr_status",
+                        "ExpressionAttributeValues": {":curr_status": _serializer.serialize(current_status)},
+                    }
+                },
+                {
+                    "Delete": {
+                        "TableName": table_name,
+                        "Key": {
+                            "PK": _serializer.serialize(f"ORG#{org_id}"),
+                            "SK": _serializer.serialize(f"ACTIVE_RECALL#{recall.get('batchId')}"),
+                        },
+                        "ConditionExpression": "attribute_not_exists(recallId) OR recallId = :recall_id",
+                        "ExpressionAttributeValues": {":recall_id": _serializer.serialize(recall_id)},
+                    }
+                },
+            ]
             try:
-                self.db.delete_item(pk=f"ORG#{org_id}", sk=f"ACTIVE_RECALL#{recall.get('batchId')}")
-            except Exception as e:
-                logger.warning(f"Could not release active recall lock: {e}")
+                if hasattr(self.db, "transact_write_items"):
+                    self.db.transact_write_items(tx_items)
+                else:
+                    self.db.put_item(updated)
+                    self.db.delete_item(pk=f"ORG#{org_id}", sk=f"ACTIVE_RECALL#{recall.get('batchId')}")
+            except IdempotencyConflictError as e:
+                logger.warning(f"Terminal transition conflict for recall '{recall_id}': {e}")
+                raise InvalidStateTransitionError(f"Concurrent status mutation or lock conflict on recall '{recall_id}'.")
+        else:
+            self.db.put_item(updated)
 
         return updated
 
@@ -510,7 +543,14 @@ class RecallService:
         tasks = []
         for node in impacted_nodes:
             node_id = node.get("nodeId", "NODE-UNKNOWN")
-            task_id = f"TSK-{uuid.uuid4().hex[:6].upper()}"
+            task_id = f"TSK-{hashlib.sha256(f'{recall_id}#{node_id}'.encode()).hexdigest()[:8].upper()}"
+
+            # Idempotency guard: preserve existing quarantine task status if already created
+            existing = self.db.get_item(pk=f"RECALL#{recall_id}", sk=f"TASK#QUARANTINE#{node_id}")
+            if isinstance(existing, dict) and "taskId" in existing:
+                tasks.append(existing)
+                continue
+
             raw_alloc = node.get("lotAllocation") or node.get("remainingUnits", 0)
             units = int(str(raw_alloc).replace(" units", "").replace(",", "").strip())
             is_carrier = node.get("nodeType") in ["LOGISTICS_CARRIER", "TRANSIT_FLEET"]

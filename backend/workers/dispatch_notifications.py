@@ -1,5 +1,6 @@
-"""Step Functions task worker: Dispatches Amazon SNS emergency recall alerts and persists dispatch ledger."""
+"""Step Functions task worker: Dispatches Amazon SNS emergency recall alerts with deterministic deduplication."""
 
+import hashlib
 import json
 import uuid
 from datetime import datetime, timezone
@@ -13,7 +14,7 @@ logger = get_logger("batchguard.workers.dispatch_sns")
 
 
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
-    """Publishes emergency recall broadcast payload to Amazon SNS topic and records dispatch ledger."""
+    """Publishes emergency recall broadcast payload to Amazon SNS topic with durable deduplication."""
     recall_id = event.get("recallId")
     batch_id = event.get("batchId")
     hazard_class = event.get("hazardClass")
@@ -21,8 +22,20 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     org_id = event.get("orgId", config.default_org_id)
     impacted_nodes_count = event.get("impactedNodesCount", 0)
 
+    # 1. Deterministic Idempotency Guard: prevent duplicate emergency broadcasts on worker retry
+    existing_dispatch = db_client.get_item(pk=f"RECALL#{recall_id}", sk="DISPATCH#EMERGENCY_BROADCAST")
+    if isinstance(existing_dispatch, dict) and existing_dispatch.get("status") == "DISPATCHED":
+        logger.info(f"Duplicate emergency broadcast suppressed for recall '{recall_id}'. Already dispatched at {existing_dispatch.get('dispatchedAt')}")
+        return {
+            **event,
+            "notificationsDispatched": True,
+            "dispatchId": existing_dispatch.get("dispatchId"),
+            "broadcastTimestamp": existing_dispatch.get("dispatchedAt"),
+            "deduplicated": True,
+        }
+
     now = datetime.now(timezone.utc).isoformat()
-    dispatch_id = f"DISP-{uuid.uuid4().hex[:6].upper()}"
+    dispatch_id = f"DISP-{hashlib.sha256(f'{org_id}#{recall_id}#EMERGENCY_BROADCAST'.encode()).hexdigest()[:8].upper()}"
 
     message_body = {
         "event": "ONE_CLICK_RECALL_INITIATED",
@@ -53,13 +66,15 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         except Exception as e:
             logger.error(f"SNS publish failed for recall {recall_id}: {e}")
 
-    # Record notification dispatch item in DynamoDB
+    # Record notification dispatch item in DynamoDB with deterministic key
     dispatch_item = {
         "PK": f"RECALL#{recall_id}",
-        "SK": f"NOTIFICATION#{now}#{dispatch_id}",
+        "SK": "DISPATCH#EMERGENCY_BROADCAST",
         "dispatchId": dispatch_id,
         "recallId": recall_id,
         "batchId": batch_id,
+        "orgId": org_id,
+        "notificationType": "EMERGENCY_BROADCAST",
         "topicArn": config.sns_recall_topic_arn or "MOCK_SNS_TOPIC",
         "messageId": message_id or f"MOCK-MSG-{uuid.uuid4().hex[:6]}",
         "recipientsCount": impacted_nodes_count,
@@ -76,4 +91,5 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         "notificationsDispatched": True,
         "dispatchId": dispatch_id,
         "broadcastTimestamp": now,
+        "deduplicated": False,
     }

@@ -26,6 +26,11 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     now = datetime.now(timezone.utc).isoformat()
     for carrier in carrier_nodes:
         node_id = carrier.get("nodeId")
+        # Idempotency guard: preserve existing intercept order timestamp on worker retry
+        existing = db_client.get_item(pk=f"RECALL#{recall_id}", sk=f"INTERCEPT#{node_id}")
+        if isinstance(existing, dict) and existing.get("status") == "INTERCEPT_ORDERED":
+            continue
+
         intercept_item = {
             "PK": f"RECALL#{recall_id}",
             "SK": f"INTERCEPT#{node_id}",

@@ -35,6 +35,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             user_id="STEP_FUNCTIONS",
             user_email=actor,
             details=details,
+            idempotency_key=f"SFN#{recall_id}#{action}",
         )
         logger.info(f"Recorded workflow audit entry {audit_res['eventId']} for recall {recall_id}")
         return {

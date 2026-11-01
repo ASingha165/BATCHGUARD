@@ -10,6 +10,7 @@ import random
 import time
 import uuid
 from datetime import datetime, timezone
+from decimal import Decimal
 from typing import Any, Dict, List, Optional, Tuple
 from boto3.dynamodb.types import TypeSerializer
 from backend.common.config import config
@@ -24,9 +25,15 @@ GENESIS_HASH = "0x" + "0" * 64
 _serializer = TypeSerializer()
 
 
+def _json_default(obj: Any) -> Any:
+    if isinstance(obj, Decimal):
+        return int(obj) if obj % 1 == 0 else float(obj)
+    return str(obj)
+
+
 def canonical_json_bytes(data: Dict[str, Any]) -> bytes:
     """Produces a deterministic, canonical UTF-8 JSON representation for hashing."""
-    return json.dumps(data, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return json.dumps(data, sort_keys=True, separators=(",", ":"), default=_json_default).encode("utf-8")
 
 
 def compute_hash(data: Dict[str, Any]) -> str:
@@ -73,14 +80,25 @@ class AuditService:
         max_retries: int = 5,
     ) -> Dict[str, Any]:
         """Appends an immutable audit log record to DynamoDB with atomic sequencing and retry on collision."""
+        # Check idempotency guard if caller provided an idempotency key
+        if payload.idempotencyKey:
+            idemp_item = self.db.get_item(pk=f"ORG#{org_id}", sk=f"IDEMP#AUDIT#{payload.idempotencyKey}")
+            if isinstance(idemp_item, dict) and "auditItem" in idemp_item:
+                logger.info(f"Duplicate audit log request suppressed for idempotency key: {payload.idempotencyKey}")
+                return idemp_item["auditItem"]
+
         last_error = None
+        table_name = getattr(self.db, "table_name", config.dynamodb_table_name)
 
         for attempt in range(max_retries):
             current_seq, expected_prev_hash = self._get_latest_audit_hash(org_id)
             next_seq = current_seq + 1
 
             now = datetime.now(timezone.utc).isoformat()
-            audit_id = f"AUD-{uuid.uuid4().hex[:6].upper()}"
+            if payload.idempotencyKey:
+                audit_id = f"AUD-{hashlib.sha256(payload.idempotencyKey.encode('utf-8')).hexdigest()[:6].upper()}"
+            else:
+                audit_id = f"AUD-{uuid.uuid4().hex[:6].upper()}"
 
             audit_content = {
                 "auditId": audit_id,
@@ -121,48 +139,75 @@ class AuditService:
                 "updatedAt": now,
             }
 
+            tx_items = [
+                {
+                    "Put": {
+                        "TableName": table_name,
+                        "Item": serialize_for_tx(audit_item),
+                        "ConditionExpression": "attribute_not_exists(PK) AND attribute_not_exists(SK)",
+                    }
+                },
+                {
+                    "Put": {
+                        "TableName": table_name,
+                        "Item": serialize_for_tx(new_head),
+                        "ConditionExpression": (
+                            "attribute_not_exists(latestHash)"
+                            if expected_prev_hash == GENESIS_HASH
+                            else "latestHash = :prev_hash"
+                        ),
+                        **(
+                            {}
+                            if expected_prev_hash == GENESIS_HASH
+                            else {"ExpressionAttributeValues": {":prev_hash": _serializer.serialize(expected_prev_hash)}}
+                        ),
+                    }
+                },
+            ]
+
+            if payload.idempotencyKey:
+                idemp_item = {
+                    "PK": f"ORG#{org_id}",
+                    "SK": f"IDEMP#AUDIT#{payload.idempotencyKey}",
+                    "idempotencyKey": payload.idempotencyKey,
+                    "auditId": audit_id,
+                    "auditItem": audit_item,
+                    "createdAt": now,
+                }
+                tx_items.append({
+                    "Put": {
+                        "TableName": table_name,
+                        "Item": serialize_for_tx(idemp_item),
+                        "ConditionExpression": "attribute_not_exists(PK) AND attribute_not_exists(SK)",
+                    }
+                })
+
             try:
-                # Attempt atomic write using transact_write_items if real DynamoDBClient
-                if isinstance(self.db, DynamoDBClient):
-                    tx_items = [
-                        {
-                            "Put": {
-                                "TableName": self.db.table_name,
-                                "Item": serialize_for_tx(audit_item),
-                                "ConditionExpression": "attribute_not_exists(PK) AND attribute_not_exists(SK)",
-                            }
-                        },
-                        {
-                            "Put": {
-                                "TableName": self.db.table_name,
-                                "Item": serialize_for_tx(new_head),
-                                "ConditionExpression": (
-                                    "attribute_not_exists(latestHash)"
-                                    if expected_prev_hash == GENESIS_HASH
-                                    else "latestHash = :prev_hash"
-                                ),
-                                **(
-                                    {}
-                                    if expected_prev_hash == GENESIS_HASH
-                                    else {"ExpressionAttributeValues": {":prev_hash": _serializer.serialize(expected_prev_hash)}}
-                                ),
-                            }
-                        },
-                    ]
+                # Atomic all-or-nothing transaction
+                if hasattr(self.db, "transact_write_items"):
                     self.db.transact_write_items(tx_items)
                 else:
-                    # Standard conditional put + head update (supported across mocks)
                     self.db.conditional_put_item(
                         item=audit_item,
                         condition_expression="attribute_not_exists(PK) AND attribute_not_exists(SK)",
                     )
                     self.db.put_item(new_head)
+                    if payload.idempotencyKey:
+                        self.db.put_item(idemp_item)
 
                 return audit_item
 
             except IdempotencyConflictError as e:
-                # Concurrent write collided on HEAD or SK: back off with jitter and retry
+                # Concurrent write collided on HEAD, SK, or idempotency token: back off with jitter and retry
                 last_error = e
+
+                # Check if a concurrent request with the same idempotency key succeeded
+                if payload.idempotencyKey:
+                    idemp_check = self.db.get_item(pk=f"ORG#{org_id}", sk=f"IDEMP#AUDIT#{payload.idempotencyKey}")
+                    if isinstance(idemp_check, dict) and "auditItem" in idemp_check:
+                        logger.info(f"Resolved concurrent collision via committed idempotency key: {payload.idempotencyKey}")
+                        return idemp_check["auditItem"]
+
                 logger.warning(
                     f"Concurrent audit write collision for org '{org_id}' on seq {next_seq} "
                     f"(attempt {attempt + 1}/{max_retries}). Retrying..."
@@ -182,6 +227,7 @@ class AuditService:
         user_id: str,
         user_email: str,
         details: Optional[Dict[str, Any]] = None,
+        idempotency_key: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Appends an audit entry from internal workflows (e.g. Step Functions task workers)."""
         req = RecordAuditLogRequest(
@@ -190,6 +236,7 @@ class AuditService:
             targetResource=entity_id,
             actionSummary=f"{action} on {entity_id} by {user_email or user_id}",
             details=details or {},
+            idempotencyKey=idempotency_key,
         )
         item = self.record_audit_entry(req, org_id=org_id)
         return {
@@ -215,7 +262,7 @@ class AuditService:
         )
         return items
 
-    def verify_chain(self, org_id: str = config.default_org_id) -> Tuple[bool, List[str]]:
+    def verify_chain(self, org_id: str = config.default_org_id, limit: int = 500) -> Tuple[bool, List[str]]:
         """Verifies the complete SHA-256 hash chain and validates against the atomic ledger head.
 
         Detects:
@@ -224,7 +271,8 @@ class AuditService:
         - Reordered entries: Broken previousHash pointer.
         - Tail truncation: Discrepancy between ledger head sequence/hash and actual records.
         """
-        entries = self.list_audit_events(org_id=org_id, limit=500, scan_index_forward=True)
+        bounded_limit = min(max(limit, 1), 1000)
+        entries = self.list_audit_events(org_id=org_id, limit=bounded_limit, scan_index_forward=True)
         head = self._get_ledger_head(org_id)
 
         errors: List[str] = []

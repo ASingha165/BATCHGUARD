@@ -1,7 +1,9 @@
 """Comprehensive tests for AWS Step Functions recall orchestration, state transitions, and worker tasks."""
 
+import copy
 from unittest.mock import MagicMock, patch
 import pytest
+from backend.services.audit_service import AuditService
 from backend.common.exceptions import (
     IdempotencyConflictError,
     InvalidStateTransitionError,
@@ -50,6 +52,23 @@ def mock_orchestration_db():
     }
     db.query_gsi.return_value = ([], None)
     db.query_by_pk.return_value = ([], None)
+
+    def mock_transact(tx_items):
+        from boto3.dynamodb.types import TypeDeserializer
+        d = TypeDeserializer()
+        for tx in tx_items:
+            if "Put" in tx:
+                item = tx["Put"].get("Item", {})
+                if isinstance(item, dict) and any(isinstance(v, dict) for v in item.values()):
+                    item = {k: d.deserialize(v) for k, v in item.items()}
+                db.put_item(item)
+            elif "Delete" in tx:
+                key = tx["Delete"].get("Key", {})
+                if isinstance(key, dict) and any(isinstance(v, dict) for v in key.values()):
+                    key = {k: d.deserialize(v) for k, v in key.items()}
+                db.delete_item(pk=key.get("PK"), sk=key.get("SK"))
+
+    db.transact_write_items.side_effect = mock_transact
     return db
 
 
@@ -642,3 +661,185 @@ def test_duplicate_acknowledgement_idempotent_update(mock_orchestration_db):
     # The record key remains identical
     assert len(ack_store) == 1
 
+
+
+def test_worker_dispatch_notifications_idempotent(monkeypatch):
+    """Duplicate invocation of dispatch_notifications worker suppresses duplicate SNS broadcasts."""
+    from backend.workers import dispatch_notifications
+    stored_items = {}
+
+    def mock_get(pk, sk):
+        return stored_items.get((pk, sk))
+
+    def mock_put(item):
+        stored_items[(item["PK"], item["SK"])] = copy.deepcopy(item)
+        return item
+
+    monkeypatch.setattr(dispatch_notifications.db_client, "get_item", mock_get)
+    monkeypatch.setattr(dispatch_notifications.db_client, "put_item", mock_put)
+
+    event = {
+        "recallId": "REC-2026-SNS-IDEMP",
+        "batchId": "BG-2024-8891-ORG",
+        "hazardClass": "CLASS_I_CRITICAL",
+        "reason": "Undeclared allergen",
+        "impactedNodesCount": 3,
+    }
+
+    # First invocation
+    res1 = dispatch_notifications.lambda_handler(event, None)
+    assert res1["notificationsDispatched"] is True
+    assert res1["deduplicated"] is False
+    assert (f"RECALL#REC-2026-SNS-IDEMP", "DISPATCH#EMERGENCY_BROADCAST") in stored_items
+
+    # Second invocation (simulated Step Functions worker retry)
+    res2 = dispatch_notifications.lambda_handler(event, None)
+    assert res2["notificationsDispatched"] is True
+    assert res2["deduplicated"] is True
+    assert res2["dispatchId"] == res1["dispatchId"]
+
+
+def test_worker_quarantine_tasks_idempotent(mock_orchestration_db):
+    """Duplicate invocation of quarantine task creation preserves existing task status."""
+    stored_tasks = {}
+
+    def fake_get(pk, sk):
+        return copy.deepcopy(stored_tasks.get((pk, sk)))
+
+    def fake_put(item):
+        stored_tasks[(item["PK"], item["SK"])] = copy.deepcopy(item)
+        return item
+
+    mock_orchestration_db.get_item.side_effect = fake_get
+    mock_orchestration_db.put_item.side_effect = fake_put
+
+    service = RecallService(db=mock_orchestration_db)
+    impacted_nodes = [
+        {"nodeId": "DC-NORTH", "nodeName": "North DC", "nodeType": "PRIMARY_DC", "lotAllocation": 500},
+        {"nodeId": "CARRIER-1", "nodeName": "Transit Fleet 1", "nodeType": "LOGISTICS_CARRIER", "lotAllocation": 200},
+    ]
+
+    # First run
+    tasks1 = service.create_quarantine_tasks("REC-IDEMP", "BG-1", impacted_nodes)
+    assert len(tasks1) == 2
+    task_id_north = tasks1[0]["taskId"]
+
+    # Simulate facility updating hold verification
+    stored_tasks[("RECALL#REC-IDEMP", "TASK#QUARANTINE#DC-NORTH")]["physicalHoldVerified"] = True
+    stored_tasks[("RECALL#REC-IDEMP", "TASK#QUARANTINE#DC-NORTH")]["quarantineStatus"] = "HOLD_VERIFIED"
+
+    # Second run (worker retry)
+    tasks2 = service.create_quarantine_tasks("REC-IDEMP", "BG-1", impacted_nodes)
+    assert len(tasks2) == 2
+    assert tasks2[0]["taskId"] == task_id_north
+    assert tasks2[0]["physicalHoldVerified"] is True, "Must preserve existing physical hold status"
+    assert tasks2[0]["quarantineStatus"] == "HOLD_VERIFIED"
+
+
+def test_worker_carrier_intercepts_idempotent(monkeypatch):
+    """Duplicate invocation of carrier intercept worker does not overwrite existing records."""
+    from backend.workers import identify_carrier_intercepts
+    stored_intercepts = {}
+
+    def mock_get(pk, sk):
+        return stored_intercepts.get((pk, sk))
+
+    def mock_put(item):
+        stored_intercepts[(item["PK"], item["SK"])] = copy.deepcopy(item)
+        return item
+
+    monkeypatch.setattr(identify_carrier_intercepts.db_client, "get_item", mock_get)
+    monkeypatch.setattr(identify_carrier_intercepts.db_client, "put_item", mock_put)
+
+    event = {
+        "recallId": "REC-CARRIER-TEST",
+        "batchId": "BG-1",
+        "impactedNodes": [
+            {"nodeId": "CARRIER-99", "nodeName": "Speedy Fleet", "nodeType": "LOGISTICS_CARRIER", "remainingUnits": 100},
+        ],
+    }
+
+    res1 = identify_carrier_intercepts.lambda_handler(event, None)
+    assert res1["carrierInterceptsOrdered"] == 1
+    ordered_time_1 = stored_intercepts[("RECALL#REC-CARRIER-TEST", "INTERCEPT#CARRIER-99")]["orderedAt"]
+
+    # Second run
+    res2 = identify_carrier_intercepts.lambda_handler(event, None)
+    assert res2["carrierInterceptsOrdered"] == 1
+    ordered_time_2 = stored_intercepts[("RECALL#REC-CARRIER-TEST", "INTERCEPT#CARRIER-99")]["orderedAt"]
+    assert ordered_time_1 == ordered_time_2, "Timestamp must not be overwritten on retry"
+
+
+def test_worker_record_audit_entry_idempotent(monkeypatch):
+    """Worker retries do not create duplicate audit records in the hash chain."""
+    from backend.workers import record_audit_entry
+    service = AuditService()
+    mock_record_event = MagicMock()
+    mock_record_event.return_value = {"eventId": "AUD-TEST-EVENT", "recordHash": "0x123"}
+    monkeypatch.setattr(record_audit_entry.audit_service, "record_event", mock_record_event)
+
+    event = {
+        "recallId": "REC-AUDIT-IDEMP",
+        "batchId": "BG-1",
+        "auditAction": "RECALL_WORKFLOW_ORCHESTRATED",
+    }
+
+    res = record_audit_entry.lambda_handler(event, None)
+    assert res["auditStatus"] == "RECORDED"
+    assert res["auditEventId"] == "AUD-TEST-EVENT"
+    mock_record_event.assert_called_once()
+    assert mock_record_event.call_args[1]["idempotency_key"] == "SFN#REC-AUDIT-IDEMP#RECALL_WORKFLOW_ORCHESTRATED"
+
+
+def test_atomic_terminal_completion_and_lock_release_transaction(mock_orchestration_db):
+    """Verifies transition to terminal state COMPLETED executes TransactWriteItems atomically."""
+    recall_record = {
+        "PK": "ORG#ORG-APEX-GLOBAL",
+        "SK": "RECALL#REC-2026-TEST",
+        "recallId": "REC-2026-TEST",
+        "batchId": "BG-2024-8891-ORG",
+        "orgId": "ORG-APEX-GLOBAL",
+        "status": "PARTIALLY_ACKNOWLEDGED",
+    }
+    mock_orchestration_db.get_item.return_value = dict(recall_record)
+
+    service = RecallService(db=mock_orchestration_db)
+    service.transition_recall_status(
+        recall_id="REC-2026-TEST",
+        target_status="COMPLETED",
+        org_id="ORG-APEX-GLOBAL",
+        actor="compliance@apex.com",
+    )
+
+    # TransactWriteItems must have been called
+    assert mock_orchestration_db.transact_write_items.called
+
+
+def test_simultaneous_completion_requests_race_condition(mock_orchestration_db):
+    """Concurrent completion attempts collide on condition and reject duplicate transitions."""
+    recall_record = {
+        "PK": "ORG#ORG-APEX-GLOBAL",
+        "SK": "RECALL#REC-2026-TEST",
+        "recallId": "REC-2026-TEST",
+        "batchId": "BG-2024-8891-ORG",
+        "orgId": "ORG-APEX-GLOBAL",
+        "status": "PARTIALLY_ACKNOWLEDGED",
+    }
+    mock_orchestration_db.get_item.return_value = dict(recall_record)
+
+    # Simulate transaction conflict on second simultaneous invocation
+    def conflict_transact(tx_items):
+        raise IdempotencyConflictError("DynamoDB transaction cancelled: TransactionCanceledException [ConditionalCheckFailed]")
+
+    mock_orchestration_db.transact_write_items.side_effect = conflict_transact
+
+    service = RecallService(db=mock_orchestration_db)
+    with pytest.raises(InvalidStateTransitionError) as exc_info:
+        service.transition_recall_status(
+            recall_id="REC-2026-TEST",
+            target_status="COMPLETED",
+            org_id="ORG-APEX-GLOBAL",
+            actor="compliance@apex.com",
+        )
+
+    assert "Concurrent status mutation or lock conflict" in str(exc_info.value)

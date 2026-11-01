@@ -122,20 +122,32 @@ def test_audit_service_record_and_list(mock_db):
     assert mock_db.conditional_put_item.called or mock_db.put_item.called
 
 
-def test_audit_hash_chain_sequential_linking(mock_db):
-    """Verify that successive audit entries chain previousHash correctly."""
-    stored_entries = []
-
+def _setup_mock_audit_store(mock_db, stored_entries):
     def mock_put(item, **kwargs):
         stored_entries.append(copy.deepcopy(item))
         return item
 
+    def mock_get(pk, sk):
+        for e in reversed(stored_entries):
+            if e.get("PK") == pk and e.get("SK") == sk:
+                return copy.deepcopy(e)
+        return None
+
     def mock_query(pk, sk_prefix="", limit=50, scan_index_forward=False):
-        sorted_entries = sorted(stored_entries, key=lambda x: x["SK"], reverse=not scan_index_forward)
+        matching = [e for e in stored_entries if e.get("SK", "").startswith(sk_prefix)] if sk_prefix else stored_entries
+        sorted_entries = sorted(matching, key=lambda x: x["SK"], reverse=not scan_index_forward)
         return copy.deepcopy(sorted_entries[:limit]), None
 
     mock_db.conditional_put_item.side_effect = mock_put
+    mock_db.put_item.side_effect = mock_put
+    mock_db.get_item.side_effect = mock_get
     mock_db.query_by_pk.side_effect = mock_query
+
+
+def test_audit_hash_chain_sequential_linking(mock_db):
+    """Verify that successive audit entries chain previousHash correctly."""
+    stored_entries = []
+    _setup_mock_audit_store(mock_db, stored_entries)
 
     service = AuditService(db=mock_db)
 
@@ -184,17 +196,7 @@ def test_audit_hash_chain_sequential_linking(mock_db):
 def test_audit_hash_chain_detects_modified_entry(mock_db):
     """Modifying any field in an audit entry must trigger an integrity tamper detection error."""
     stored_entries = []
-
-    def mock_put(item, **kwargs):
-        stored_entries.append(copy.deepcopy(item))
-        return item
-
-    def mock_query(pk, sk_prefix="", limit=50, scan_index_forward=False):
-        sorted_entries = sorted(stored_entries, key=lambda x: x["SK"], reverse=not scan_index_forward)
-        return copy.deepcopy(sorted_entries[:limit]), None
-
-    mock_db.conditional_put_item.side_effect = mock_put
-    mock_db.query_by_pk.side_effect = mock_query
+    _setup_mock_audit_store(mock_db, stored_entries)
 
     service = AuditService(db=mock_db)
 
@@ -220,17 +222,7 @@ def test_audit_hash_chain_detects_modified_entry(mock_db):
 def test_audit_hash_chain_detects_deleted_entry(mock_db):
     """Deleting an entry from the ledger breaks the hash chain pointer of the next entry."""
     stored_entries = []
-
-    def mock_put(item, **kwargs):
-        stored_entries.append(copy.deepcopy(item))
-        return item
-
-    def mock_query(pk, sk_prefix="", limit=50, scan_index_forward=False):
-        sorted_entries = sorted(stored_entries, key=lambda x: x["SK"], reverse=not scan_index_forward)
-        return copy.deepcopy(sorted_entries[:limit]), None
-
-    mock_db.conditional_put_item.side_effect = mock_put
-    mock_db.query_by_pk.side_effect = mock_query
+    _setup_mock_audit_store(mock_db, stored_entries)
 
     service = AuditService(db=mock_db)
 
@@ -248,8 +240,9 @@ def test_audit_hash_chain_detects_deleted_entry(mock_db):
         org_id="ORG-TEST",
     )
 
-    # Delete entry 1 (middle entry)
-    del stored_entries[1]
+    # Delete entry 1 (middle audit entry)
+    audit_indices = [i for i, e in enumerate(stored_entries) if e.get("SK", "").startswith("AUDIT#")]
+    del stored_entries[audit_indices[1]]
 
     is_valid, errors = service.verify_chain(org_id="ORG-TEST")
     assert is_valid is False
@@ -259,17 +252,7 @@ def test_audit_hash_chain_detects_deleted_entry(mock_db):
 def test_audit_hash_chain_detects_reordered_entries(mock_db):
     """Reordering entries in the audit ledger breaks the previousHash sequence."""
     stored_entries = []
-
-    def mock_put(item, **kwargs):
-        stored_entries.append(copy.deepcopy(item))
-        return item
-
-    def mock_query(pk, sk_prefix="", limit=50, scan_index_forward=False):
-        sorted_entries = sorted(stored_entries, key=lambda x: x["SK"], reverse=not scan_index_forward)
-        return copy.deepcopy(sorted_entries[:limit]), None
-
-    mock_db.conditional_put_item.side_effect = mock_put
-    mock_db.query_by_pk.side_effect = mock_query
+    _setup_mock_audit_store(mock_db, stored_entries)
 
     service = AuditService(db=mock_db)
 
@@ -327,30 +310,7 @@ def test_audit_hash_chain_serialization_round_trip():
 def test_audit_ledger_head_tail_truncation_detection(mock_db):
     """Detects when an attacker deletes the most recent (tail) records while prefix remains intact."""
     stored_entries = []
-    ledger_head = {}
-
-    def mock_put_cond(item, **kwargs):
-        stored_entries.append(copy.deepcopy(item))
-        return item
-
-    def mock_put(item, **kwargs):
-        if item.get("SK") == "AUDIT_LEDGER_HEAD":
-            ledger_head.update(copy.deepcopy(item))
-        return item
-
-    def mock_get(pk, sk):
-        if sk == "AUDIT_LEDGER_HEAD" and ledger_head:
-            return copy.deepcopy(ledger_head)
-        return None
-
-    def mock_query(pk, sk_prefix="", limit=50, scan_index_forward=False):
-        sorted_entries = sorted(stored_entries, key=lambda x: x["SK"], reverse=not scan_index_forward)
-        return copy.deepcopy(sorted_entries[:limit]), None
-
-    mock_db.conditional_put_item.side_effect = mock_put_cond
-    mock_db.put_item.side_effect = mock_put
-    mock_db.get_item.side_effect = mock_get
-    mock_db.query_by_pk.side_effect = mock_query
+    _setup_mock_audit_store(mock_db, stored_entries)
 
     service = AuditService(db=mock_db)
 
@@ -375,7 +335,8 @@ def test_audit_ledger_head_tail_truncation_detection(mock_db):
 
     # Simulate Tail Truncation: Attacker silently deletes the 3rd (tail) entry from the table
     # The remaining 2 entries are intact and form a valid sub-chain, but ledger head knows 3 exist
-    stored_entries.pop()
+    tail_idx = max(i for i, e in enumerate(stored_entries) if e.get("SK", "").startswith("AUDIT#"))
+    del stored_entries[tail_idx]
 
     is_valid, errors = service.verify_chain(org_id="ORG-TEST")
     assert is_valid is False
@@ -433,10 +394,11 @@ def test_audit_concurrent_write_contention_and_retry(mock_db):
 
     def mock_put_with_contention(item, **kwargs):
         nonlocal attempts
-        attempts += 1
-        if attempts == 1:
-            # First attempt collides with another Lambda writing concurrently
-            raise IdempotencyConflictError("DynamoDB transaction cancelled: ConditionalCheckFailed")
+        if item.get("SK", "").startswith("AUDIT#"):
+            attempts += 1
+            if attempts == 1:
+                # First attempt collides with another Lambda writing concurrently
+                raise IdempotencyConflictError("DynamoDB transaction cancelled: ConditionalCheckFailed")
         stored_entries.append(copy.deepcopy(item))
         return item
 
@@ -481,3 +443,89 @@ def test_audit_retry_exhaustion_raises_conflict(mock_db):
 
     assert "failed to atomically commit audit log entry" in str(exc_info.value).lower()
 
+
+
+def test_audit_idempotency_key_suppresses_duplicate(mock_db):
+    """Repeated submission of the same logical audit event returns existing record without duplicating."""
+    stored_entries = []
+    _setup_mock_audit_store(mock_db, stored_entries)
+
+    service = AuditService(db=mock_db)
+    req = RecordAuditLogRequest(
+        eventType="RECALL_APPROVED",
+        actor="compliance@apex.com",
+        targetResource="RECALL#REC-100",
+        actionSummary="Approved recall",
+        idempotencyKey="IDEMP-AUDIT-APPROVAL-REC-100",
+    )
+
+    # First write
+    res1 = service.record_audit_entry(req, org_id="ORG-TEST")
+    assert res1["auditId"].startswith("AUD-")
+    assert res1["sequenceNumber"] == 1
+
+    # Second write with identical idempotencyKey
+    res2 = service.record_audit_entry(req, org_id="ORG-TEST")
+    assert res2["auditId"] == res1["auditId"], "Must return identical audit record"
+    assert res2["recordHash"] == res1["recordHash"]
+
+    # Verify no duplicate audit entries in ledger
+    audit_items = [e for e in stored_entries if e.get("SK", "").startswith("AUDIT#")]
+    assert len(audit_items) == 1, "Must not append duplicate entry to the audit ledger"
+
+
+def test_audit_distinct_events_with_identical_payload_remain_distinct(mock_db):
+    """Distinct logical audit events without idempotency keys create sequential, distinct entries."""
+    stored_entries = []
+    _setup_mock_audit_store(mock_db, stored_entries)
+
+    service = AuditService(db=mock_db)
+    req1 = RecordAuditLogRequest(
+        eventType="PING",
+        actor="system@apex.com",
+        targetResource="SYSTEM#HEALTH",
+        actionSummary="Heartbeat check",
+    )
+    req2 = RecordAuditLogRequest(
+        eventType="PING",
+        actor="system@apex.com",
+        targetResource="SYSTEM#HEALTH",
+        actionSummary="Heartbeat check",
+    )
+
+    res1 = service.record_audit_entry(req1, org_id="ORG-TEST")
+    res2 = service.record_audit_entry(req2, org_id="ORG-TEST")
+
+    assert res1["auditId"] != res2["auditId"]
+    assert res1["sequenceNumber"] == 1
+    assert res2["sequenceNumber"] == 2
+    assert res2["previousHash"] == res1["recordHash"]
+
+    is_valid, errors = service.verify_chain(org_id="ORG-TEST")
+    assert is_valid is True
+    assert len(errors) == 0
+
+
+def test_audit_transaction_cancellation_preserves_ledger_integrity(mock_db):
+    """Failed transaction rollback ensures neither partial record nor advanced head is persisted."""
+    stored_entries = []
+    _setup_mock_audit_store(mock_db, stored_entries)
+
+    def failing_transact(tx_items):
+        raise IdempotencyConflictError("DynamoDB transaction cancelled: TransactionCanceledException [ConditionalCheckFailed]")
+
+    mock_db.transact_write_items.side_effect = failing_transact
+
+    service = AuditService(db=mock_db)
+    req = RecordAuditLogRequest(
+        eventType="CRITICAL_EVENT",
+        actor="user@apex.com",
+        targetResource="RES#99",
+        actionSummary="Testing rollback",
+    )
+
+    with pytest.raises(IdempotencyConflictError):
+        service.record_audit_entry(req, org_id="ORG-TEST", max_retries=1)
+
+    # Table must remain pristine
+    assert len(stored_entries) == 0

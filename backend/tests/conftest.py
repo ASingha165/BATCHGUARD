@@ -44,4 +44,26 @@ def mock_db():
     mock.query_gsi.return_value = (sample_items, None)
     mock.conditional_put_item.side_effect = lambda item, **kwargs: item
     mock.put_item.side_effect = lambda item, **kwargs: item
+    mock.delete_item.side_effect = lambda pk, sk, **kwargs: {"PK": pk, "SK": sk}
+
+    def mock_transact(tx_items):
+        from boto3.dynamodb.types import TypeDeserializer
+        d = TypeDeserializer()
+        for tx in tx_items:
+            if "Put" in tx:
+                put_op = tx["Put"]
+                item = put_op.get("Item", {})
+                cond = put_op.get("ConditionExpression")
+                vals = put_op.get("ExpressionAttributeValues", {})
+                if isinstance(item, dict) and any(isinstance(v, dict) and any(k in v for k in ("S", "N", "B", "BOOL", "NULL", "M", "L")) for v in item.values()):
+                    item = {k: d.deserialize(v) for k, v in item.items()}
+                mock.conditional_put_item(item=item, condition_expression=cond, expression_attribute_values=vals)
+            elif "Delete" in tx:
+                del_op = tx["Delete"]
+                key = del_op.get("Key", {})
+                if isinstance(key, dict) and any(isinstance(v, dict) for v in key.values()):
+                    key = {k: d.deserialize(v) for k, v in key.items()}
+                mock.delete_item(pk=key.get("PK"), sk=key.get("SK"))
+
+    mock.transact_write_items.side_effect = mock_transact
     return mock

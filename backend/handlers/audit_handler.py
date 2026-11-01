@@ -3,7 +3,7 @@
 import json
 from typing import Any, Dict
 from pydantic import ValidationError as PydanticValidationError
-from backend.common.auth import enforce_tenant_boundary, extract_auth_context
+from backend.common.auth import enforce_tenant_boundary, extract_auth_context, require_role
 from backend.common.exceptions import BatchGuardException
 from backend.common.logger import get_logger
 from backend.common.response import error_response, success_response
@@ -33,24 +33,39 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
         # Route 1: GET /v1/audit/verify or /v1/audit/logs/verify
         if http_method == "GET" and path.endswith("/verify"):
-            is_valid, errors = audit_service.verify_chain(org_id=auth.org_id)
+            # Enforce RBAC: Verification restricted to Compliance Officers, Auditors, and Admins
+            require_role(auth, ["COMPLIANCE_OFFICER", "ADMIN", "AUDITOR", "QUALITY_ASSURANCE"])
+            raw_limit = query_params.get("limit", 500)
+            try:
+                limit = min(max(int(raw_limit), 1), 1000)
+            except (ValueError, TypeError):
+                limit = 500
+
+            is_valid, errors = audit_service.verify_chain(org_id=auth.org_id, limit=limit)
             return success_response(
                 data={
                     "verified": is_valid,
                     "errors": errors,
                     "hashAlgorithm": "SHA-256",
                     "orgId": auth.org_id,
+                    "entriesChecked": limit,
                 },
                 request_id=request_id,
             )
 
         # Route 2: GET /v1/audit/logs or /v1/audit-logs
         if http_method == "GET":
-            logs = audit_service.list_audit_events(org_id=auth.org_id)
+            raw_limit = query_params.get("limit", 50)
+            try:
+                limit = min(max(int(raw_limit), 1), 200)
+            except (ValueError, TypeError):
+                limit = 50
+            logs = audit_service.list_audit_events(org_id=auth.org_id, limit=limit)
             return success_response(data={"logs": logs}, request_id=request_id)
 
         # Route 3: POST /v1/audit/logs
         if http_method == "POST":
+            require_role(auth, ["COMPLIANCE_OFFICER", "ADMIN", "AUDITOR", "OPERATOR", "SYSTEM"])
             raw_body = json.loads(event.get("body") or "{}")
             req = RecordAuditLogRequest(**raw_body)
             # Enforce actor from authenticated context

@@ -87,3 +87,4 @@ class RecordAuditLogRequest(BaseModel):
     targetResource: str = Field(..., min_length=3)
     actionSummary: str = Field(..., min_length=3)
     details: Optional[Dict[str, Any]] = None
+    idempotencyKey: Optional[str] = None

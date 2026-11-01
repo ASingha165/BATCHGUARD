@@ -20,7 +20,7 @@
 | :--- | :--- | :--- | :--- | :--- |
 | **`BatchesFunction`** | `handlers.batch_handler.lambda_handler` | `DynamoDBCrudPolicy` | `dynamodb:GetItem`, `PutItem`, `UpdateItem`, `Query` | `BatchGuardMainTable` |
 | **`TraceabilityFunction`**| `handlers.traceability_handler.lambda_handler`| `DynamoDBReadPolicy` | `dynamodb:GetItem`, `Query` | `BatchGuardMainTable` |
-| **`RecallsFunction`** | `handlers.recall_handler.lambda_handler` | `DynamoDBCrudPolicy`<br/>`Statement` (Scoped SFN Callback) | `dynamodb:*`<br/>`states:StartExecution`<br/>`states:DescribeExecution`<br/>`states:SendTaskSuccess`<br/>`states:SendTaskFailure` | `BatchGuardMainTable`<br/>`RecallOrchestratorStateMachine` |
+| **`RecallsFunction`** | `handlers.recall_handler.lambda_handler` | `DynamoDBCrudPolicy`<br/>`Statement` (SFN Execution & Callback) | `dynamodb:*`<br/>`states:StartExecution`, `DescribeExecution`<br/>`states:SendTaskSuccess`, `SendTaskFailure` | `BatchGuardMainTable`<br/>`RecallOrchestratorStateMachine`<br/>`*` (TaskToken callback specification) |
 | **`SuppliersFunction`**| `handlers.supplier_handler.lambda_handler`| `DynamoDBCrudPolicy` | `dynamodb:GetItem`, `PutItem`, `Query` | `BatchGuardMainTable` |
 | **`DistributionFunction`**| `handlers.distribution_handler.lambda_handler`| `DynamoDBCrudPolicy`| `dynamodb:GetItem`, `PutItem`, `Query` | `BatchGuardMainTable` |
 | **`EvidenceFunction`**| `handlers.evidence_handler.lambda_handler`| `DynamoDBCrudPolicy`<br/>`S3CrudPolicy` | `dynamodb:*`<br/>`s3:PutObject`, `s3:GetObject` | `BatchGuardMainTable`<br/>`EvidenceVaultBucket` |

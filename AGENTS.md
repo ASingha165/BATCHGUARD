@@ -284,3 +284,14 @@ Primary Table Name: `BatchGuard-Main-{Environment}`
      3. `verifiedHoldCount == totalImpactedFacilities` (every single impacted facility has verified physical cooler/warehouse quarantine with `physicalHoldVerified == True`).
    * Facilities submitting unconfirmed receipts remain in `PARTIALLY_ACKNOWLEDGED`.
    * Reaching `COMPLETED`, `REJECTED`, `FAILED`, or `CANCELLED` automatically releases the atomic active recall lock (`ACTIVE_RECALL#<batchId>`).
+
+3. **Atomic TransactWriteItems Ledger Head & Terminal Lock Release:**
+   * Audit log insertion and `AUDIT_LEDGER_HEAD` advancement MUST execute within the same DynamoDB `TransactWriteItems` transaction with condition expressions ensuring strict sequential integrity and optimistic concurrency control.
+   * Transitioning a recall to a terminal state (`COMPLETED`, `REJECTED`, `FAILED`, `CANCELLED`) and releasing the active recall lock (`ACTIVE_RECALL#<batchId>`) MUST execute atomically via `TransactWriteItems` with condition `status = :curr_status` and `recallId = :recall_id`.
+
+4. **Worker Side-Effect Idempotency:**
+   * Step Functions task workers MUST tolerate retries idempotently:
+     - SNS emergency broadcasts use deterministic deduplication keys (`DISPATCH#EMERGENCY_BROADCAST`).
+     - Quarantine tasks use deterministic identifiers (`TSK-<hash>`) and preserve existing verified hold states.
+     - Carrier intercepts check existing records and preserve dispatch timestamps.
+     - Worker audit events supply deterministic idempotency keys (`SFN#<recallId>#<action>`).

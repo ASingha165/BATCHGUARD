@@ -215,9 +215,12 @@ Resources:
               Action:
                 - states:StartExecution
                 - states:DescribeExecution
+              Resource: !Ref RecallOrchestratorStateMachine
+            - Effect: Allow
+              Action:
                 - states:SendTaskSuccess
                 - states:SendTaskFailure
-              Resource: !Ref RecallOrchestratorStateMachine
+              Resource: "*" # Mandated by AWS Step Functions IAM specifications for task token callbacks
       Events:
         AssessBlastRadius:
           Type: Api
