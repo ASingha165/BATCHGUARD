@@ -7,6 +7,7 @@ adhering to the single-table schema.
 from decimal import Decimal
 from typing import Any, Dict, List, Optional, Tuple
 import boto3
+from boto3.dynamodb.conditions import Key, Attr
 from botocore.exceptions import ClientError
 from backend.common.config import config
 from backend.common.exceptions import BatchGuardException, IdempotencyConflictError
@@ -147,9 +148,9 @@ class DynamoDBClient:
     ) -> Tuple[List[Dict[str, Any]], Optional[Dict[str, Any]]]:
         """Queries items sharing a partition key, optionally filtering by SK prefix and supporting pagination."""
         try:
-            key_condition = boto3.dynamodb.conditions.Key("PK").eq(pk)
+            key_condition = Key("PK").eq(pk)
             if sk_prefix:
-                key_condition = key_condition & boto3.dynamodb.conditions.Key("SK").begins_with(sk_prefix)
+                key_condition = key_condition & Key("SK").begins_with(sk_prefix)
 
             params: Dict[str, Any] = {
                 "KeyConditionExpression": key_condition,
@@ -180,9 +181,9 @@ class DynamoDBClient:
             pk_attr = f"{index_name}PK"
             sk_attr = f"{index_name}SK"
 
-            key_condition = boto3.dynamodb.conditions.Key(pk_attr).eq(pk_value)
+            key_condition = Key(pk_attr).eq(pk_value)
             if sk_prefix:
-                key_condition = key_condition & boto3.dynamodb.conditions.Key(sk_attr).begins_with(sk_prefix)
+                key_condition = key_condition & Key(sk_attr).begins_with(sk_prefix)
 
             params: Dict[str, Any] = {
                 "IndexName": index_name,

@@ -233,3 +233,22 @@ Append-only log of critical system operations.
 | **Get Batch Evidence Documents** | `Query GSI1` | `GSI1PK = BATCH#<batchId>`, `GSI1SK begins_with EVIDENCE#` |
 | **Get Organization Audit Trail** | `Query` | `PK = ORG#<orgId>`, `SK begins_with AUDIT#` (scanIndexForward=False) |
 
+
+---
+
+## 5. Tenant Isolation, Concurrency & Cryptographic Invariants
+
+### 5.1 Multi-Tenant Partitioning
+Every tenant interaction is bounded by the primary partition key `ORG#<orgId>`.
+* Inverted index lookups (e.g. `GSI1PK = BATCH#<batchId>`) filter strictly on caller `PK == ORG#<orgId>`.
+* Under no circumstances may client-supplied identifiers override the partition key extracted from verified JWT claims (`requestContext.authorizer.claims`).
+
+### 5.2 Conditional Writes & Concurrency Controls
+* **Item Insertion:** Uses `ConditionExpression="attribute_not_exists(PK) AND attribute_not_exists(SK)"` to prevent silent overwrites from concurrent calls.
+* **Idempotency Protection:** Critical operations (recall initiation) verify `IDEMP#<idempotencyToken>` with a 24-hour TTL before executing workflow side effects.
+* **Recall Duplication Guard:** Checks whether `GSI1PK = BATCH#<batchId>` has an existing record with status `INITIATED` or `CONTAINMENT_IN_PROGRESS`.
+
+### 5.3 Audit Integrity Classification
+1. **Application Append-Only:** DynamoDB write policies enforce conditional puts preventing in-place mutations.
+2. **Hash-Based Tamper Evidence:** Records contain a deterministic SHA-256 checksum of canonical JSON attributes. Any subsequent row modification breaks hash validation.
+3. **Enterprise Non-Repudiation (WORM):** True regulatory immutability is implemented via DynamoDB Streams streaming into an Amazon S3 bucket configured with **S3 Object Lock (Compliance Mode)**.

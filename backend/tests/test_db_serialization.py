@@ -35,3 +35,4 @@ def test_native_to_decimal_conversion():
     assert isinstance(converted["nested_floats"][0], Decimal)
     assert isinstance(converted["nested_dict"]["inner_float"], Decimal)
     assert converted["int_val"] == 10
+

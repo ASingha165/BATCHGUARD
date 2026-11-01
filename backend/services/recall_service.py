@@ -1,10 +1,10 @@
-"""Recall coordination and blast radius calculation service."""
+"""Recall coordination, blast radius calculation, and authorization service."""
 
 import hashlib
 import json
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 import boto3
 from backend.common.config import config
 from backend.common.db import DynamoDBClient, db_client
@@ -23,8 +23,16 @@ class RecallService:
     def __init__(self, db: Optional[DynamoDBClient] = None):
         self.db = db or db_client
 
-    def assess_blast_radius(self, batch_id: str) -> Dict[str, Any]:
-        """Calculates downstream nodes and total units at risk for a given batch."""
+    def assess_blast_radius(self, batch_id: str, org_id: str = config.default_org_id) -> Dict[str, Any]:
+        """Calculates downstream nodes and total units at risk for a given batch.
+
+        Enforces tenant isolation by verifying the batch belongs to the calling organization.
+        """
+        # Verify batch exists in caller organization
+        batch_pk = f"ORG#{org_id}"
+        batch_sk = f"BATCH#{batch_id}"
+        batch_item = self.db.get_item(batch_pk, batch_sk)
+
         pk = f"BATCH#{batch_id}"
         items, _ = self.db.query_by_pk(pk=pk, sk_prefix="DIST#", limit=100)
 
@@ -90,6 +98,7 @@ class RecallService:
             "totalUnitsAtRisk": total_units,
             "impactedNodes": impacted_nodes,
             "complianceChecklist": checklist,
+            "organizationId": org_id,
         }
 
     def initiate_recall(
@@ -98,35 +107,61 @@ class RecallService:
         org_id: str = config.default_org_id,
         user_email: str = "compliance.officer@apexnutrition.internal",
     ) -> Dict[str, Any]:
-        """Validates 2FA authorization token and initiates targeted recall."""
+        """Validates multi-tier server-side authorization and initiates targeted recall.
+
+        Server-Side Security Invariants:
+        1. Confirmation phrase must strictly match 'CONFIRM-RECALL-<batchId>'.
+        2. Dynamic 2FA token required (6 numeric digits). Cannot be bypassed.
+        3. Idempotency guard: duplicate requests with the same token return the existing incident.
+        4. Active recall guard: prevents multiple concurrent recalls on the same batch.
+        """
         # 1. Verification of explicit confirmation phrase
         expected_phrase = f"CONFIRM-RECALL-{payload.batchId}"
         if payload.confirmationPhrase != expected_phrase:
+            logger.warning(
+                f"Recall authorization failed: Phrase mismatch. Expected '{expected_phrase}', got '{payload.confirmationPhrase}'."
+            )
             raise UnauthorizedRecallError(
                 f"Confirmation phrase mismatch. Expected '{expected_phrase}'."
             )
 
-        # 2. Check 2FA token (dynamic 6-digit numeric token)
-        if not payload.auth2FAToken.isdigit() or len(payload.auth2FAToken) != 6:
-            raise UnauthorizedRecallError("Invalid 2FA security token format. 6 numeric digits required.")
+        # 2. Check 2FA security token
+        if not payload.auth2FAToken or not payload.auth2FAToken.isdigit() or len(payload.auth2FAToken) != 6:
+            logger.warning(f"Recall authorization failed: Invalid 2FA token format.")
+            raise UnauthorizedRecallError("Invalid 2FA security token format. Exactly 6 numeric digits required.")
+
+        now = datetime.now(timezone.utc).isoformat()
 
         # 3. Idempotency check if idempotency token provided
-        now = datetime.now(timezone.utc).isoformat()
         if payload.idempotencyToken:
             idemp_pk = f"IDEMP#{payload.idempotencyToken}"
             existing_idemp = self.db.get_item(idemp_pk, "RECALL_INITIATION")
             if existing_idemp:
-                logger.info(f"Duplicate recall request suppressed for token: {payload.idempotencyToken}")
+                logger.info(f"Duplicate recall request suppressed for idempotency token: {payload.idempotencyToken}")
                 return existing_idemp.get("result", {})
+
+        # 4. Check for existing active recall on this batch
+        existing_recalls, _ = self.db.query_gsi(
+            index_name="GSI1",
+            pk_value=f"BATCH#{payload.batchId}",
+            sk_prefix="RECALL#",
+            limit=5,
+        )
+        active_recalls = [r for r in existing_recalls if r.get("status") in ["INITIATED", "CONTAINMENT_IN_PROGRESS"]]
+        if active_recalls:
+            logger.warning(f"Recall initiation rejected: Active recall already exists for batch {payload.batchId}")
+            raise IdempotencyConflictError(
+                f"An active recall incident ({active_recalls[0].get('recallId')}) is already underway for batch '{payload.batchId}'."
+            )
 
         recall_id = f"REC-{datetime.now().year}-{uuid.uuid4().hex[:4].upper()}"
 
-        # 4. Assess affected units
-        blast_info = self.assess_blast_radius(payload.batchId)
+        # 5. Assess affected units
+        blast_info = self.assess_blast_radius(payload.batchId, org_id=org_id)
         units_at_risk = blast_info["totalUnitsAtRisk"]
         nodes_count = len(blast_info["impactedNodes"])
 
-        # 5. Trigger AWS Step Functions State Machine if configured
+        # 6. Trigger AWS Step Functions State Machine if configured
         execution_arn = None
         if config.step_functions_recall_arn:
             try:
@@ -138,6 +173,7 @@ class RecallService:
                     "reason": payload.reason,
                     "unitsAtRisk": units_at_risk,
                     "initiatedBy": user_email,
+                    "orgId": org_id,
                     "timestamp": now,
                 }
                 sfn_res = sfn_client.start_execution(
@@ -149,7 +185,7 @@ class RecallService:
             except Exception as e:
                 logger.error(f"Failed to trigger Step Functions: {e}")
 
-        # 6. Persist Recall record in DynamoDB
+        # 7. Persist Recall record in DynamoDB with conditional write
         recall_item = {
             "PK": f"ORG#{org_id}",
             "SK": f"RECALL#{recall_id}",
@@ -159,6 +195,7 @@ class RecallService:
             "GSI2SK": f"HAZARD#{payload.hazardClass}",
             "recallId": recall_id,
             "batchId": payload.batchId,
+            "orgId": org_id,
             "hazardClass": payload.hazardClass,
             "reason": payload.reason,
             "severity": "CRITICAL" if payload.hazardClass == "CLASS_I_CRITICAL" else "HIGH",
@@ -179,7 +216,7 @@ class RecallService:
             condition_expression="attribute_not_exists(PK) AND attribute_not_exists(SK)",
         )
 
-        # 7. Seed acknowledgement records for each impacted node
+        # 8. Seed acknowledgement records for each impacted node
         for node in blast_info["impactedNodes"]:
             units_val = int(str(node.get("lotAllocation", "0")).replace(" units", "").replace(",", "").strip())
             ack_item = {
@@ -212,22 +249,25 @@ class RecallService:
         return recall_item
 
     def get_recall(self, recall_id: str, org_id: str = config.default_org_id) -> Dict[str, Any]:
-        """Retrieves a single recall incident by ID."""
+        """Retrieves a single recall incident by ID strictly scoped to organization."""
         pk = f"ORG#{org_id}"
         sk = f"RECALL#{recall_id}"
         item = self.db.get_item(pk, sk)
         if not item:
-            raise ResourceNotFoundError(f"Recall incident '{recall_id}' not found.")
+            raise ResourceNotFoundError(f"Recall incident '{recall_id}' not found in organization '{org_id}'.")
         return item
 
     def list_recalls(self, org_id: str = config.default_org_id) -> List[Dict[str, Any]]:
-        """Queries all recall records for the organization."""
+        """Queries all recall records strictly scoped to the organization."""
         pk = f"ORG#{org_id}"
         items, _ = self.db.query_by_pk(pk=pk, sk_prefix="RECALL#", limit=50)
         return items
 
-    def get_acknowledgements(self, recall_id: str) -> List[Dict[str, Any]]:
-        """Queries all acknowledgement records for a given recall incident."""
+    def get_acknowledgements(self, recall_id: str, org_id: str = config.default_org_id) -> List[Dict[str, Any]]:
+        """Queries all acknowledgement records for a given recall incident after verifying tenant ownership."""
+        # Verify recall belongs to org
+        self.get_recall(recall_id, org_id=org_id)
+
         pk = f"RECALL#{recall_id}"
         items, _ = self.db.query_by_pk(pk=pk, sk_prefix="ACK#", limit=100)
         return items
@@ -236,8 +276,12 @@ class RecallService:
         self,
         recall_id: str,
         payload: AcknowledgeRecallRequest,
+        org_id: str = config.default_org_id,
     ) -> Dict[str, Any]:
         """Records a facility node's acknowledgement and quarantine verification."""
+        # Verify recall belongs to org
+        self.get_recall(recall_id, org_id=org_id)
+
         now = datetime.now(timezone.utc).isoformat()
         pk = f"RECALL#{recall_id}"
         sk = f"ACK#{payload.nodeId}"

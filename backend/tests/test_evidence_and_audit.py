@@ -8,7 +8,10 @@ from backend.services.evidence_service import EvidenceService
 
 def test_evidence_service_presigned_url(mock_db):
     mock_s3 = MagicMock()
-    mock_s3.generate_presigned_url.return_value = "https://s3.amazonaws.com/test-presigned-url"
+    mock_s3.generate_presigned_post.return_value = {
+        "url": "https://s3.amazonaws.com/test-presigned-url",
+        "fields": {"key": "test-key"},
+    }
 
     service = EvidenceService(db=mock_db, s3_client=mock_s3)
     req = PresignedUrlRequest(
@@ -22,7 +25,7 @@ def test_evidence_service_presigned_url(mock_db):
     assert res["uploadUrl"] == "https://s3.amazonaws.com/test-presigned-url"
     assert res["expiresInSeconds"] == 900
     assert "evidence/ORG-APEX-GLOBAL/BG-2024-8891-ORG/" in res["s3Key"]
-    assert mock_db.put_item.called
+    assert mock_db.conditional_put_item.called
 
 
 def test_audit_service_record_and_list(mock_db):
@@ -42,3 +45,4 @@ def test_audit_service_record_and_list(mock_db):
 
     logs = service.list_audit_events()
     assert len(logs) == 2
+

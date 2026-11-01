@@ -34,7 +34,7 @@ class InitiateRecallRequest(BaseModel):
     hazardClass: str = Field(..., pattern="^(CLASS_I_CRITICAL|CLASS_II|CLASS_III)$")
     reason: str = Field(..., min_length=5)
     confirmationPhrase: str = Field(..., min_length=10)
-    auth2FAToken: str = Field(..., min_length=6, max_length=6)
+    auth2FAToken: str = Field(..., pattern=r"^\d{6}$")
     idempotencyToken: Optional[str] = None
 
 

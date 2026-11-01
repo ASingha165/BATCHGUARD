@@ -34,6 +34,7 @@ Globals:
         S3_EVIDENCE_BUCKET_NAME: !Ref EvidenceVaultBucket
         SNS_RECALL_TOPIC_ARN: !Ref RecallTopic
         STEP_FUNCTIONS_RECALL_ARN: !Ref RecallOrchestratorStateMachine
+        COGNITO_USER_POOL_ID: !Ref BatchGuardUserPool
 
 Resources:
   # ============================================================================
@@ -45,11 +46,11 @@ Resources:
       StageName: !Ref Environment
       Cors:
         AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
-        AllowHeaders: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
+        AllowHeaders: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token,X-Organization-Id'"
         AllowOrigin: "'*'"
 
   # ============================================================================
-  # 2. DYNAMODB (Single-Table Design)
+  # 2. DYNAMODB (Single-Table Design with PITR)
   # ============================================================================
   BatchGuardMainTable:
     Type: AWS::DynamoDB::Table
@@ -324,6 +325,12 @@ Resources:
             RestApiId: !Ref BatchGuardApi
             Path: /v1/evidence
             Method: GET
+        DownloadEvidence:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BatchGuardApi
+            Path: /v1/evidence/{docId}/download-url
+            Method: GET
 
   AuditFunction:
     Type: AWS::Serverless::Function
@@ -406,6 +413,44 @@ Resources:
         - LambdaInvokePolicy:
             FunctionName: !Ref RecordAuditEntryWorker
 
+  # ============================================================================
+  # 8. AMAZON COGNITO USER POOL (Tenant Identity & MFA Strategy)
+  # ============================================================================
+  BatchGuardUserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub "batchguard-users-${Environment}"
+      AutoVerifiedAttributes:
+        - email
+      MfaConfiguration: "OPTIONAL"
+      EnabledMfas:
+        - SOFTWARE_TOKEN_MFA
+      Schema:
+        - Name: email
+          AttributeDataType: String
+          Required: true
+          Mutable: true
+        - Name: org_id
+          AttributeDataType: String
+          Required: false
+          Mutable: true
+      PasswordPolicy:
+        MinimumLength: 12
+        RequireUppercase: true
+        RequireLowercase: true
+        RequireNumbers: true
+        RequireSymbols: true
+
+  BatchGuardUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: !Sub "batchguard-web-client-${Environment}"
+      UserPoolId: !Ref BatchGuardUserPool
+      GenerateSecret: false
+      ExplicitAuthFlows:
+        - ALLOW_USER_SRP_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+
 # ============================================================================
 # OUTPUTS
 # ============================================================================
@@ -425,3 +470,9 @@ Outputs:
   StepFunctionsArn:
     Description: Recall Orchestrator Step Functions State Machine ARN
     Value: !Ref RecallOrchestratorStateMachine
+  CognitoUserPoolId:
+    Description: Amazon Cognito User Pool ID for Enterprise Auth
+    Value: !Ref BatchGuardUserPool
+  CognitoClientId:
+    Description: Amazon Cognito User Pool Web Client ID
+    Value: !Ref BatchGuardUserPoolClient

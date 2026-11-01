@@ -42,3 +42,4 @@ def test_distribution_service_list_and_create(mock_db):
     new_node = service.create_node(req)
     assert new_node["nodeId"] == "DC-CENTRAL-09"
     assert new_node["coldChainCompliance"] == 99.8
+

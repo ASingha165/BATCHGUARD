@@ -95,3 +95,4 @@ def test_recall_handler_assess_blast_radius(mock_db):
         assert body["success"] is True
         assert body["data"]["batchId"] == "BG-2024-8891-ORG"
         assert body["data"]["totalUnitsAtRisk"] == 4200
+

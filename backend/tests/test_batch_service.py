@@ -61,3 +61,4 @@ def test_create_batch_success(mock_db):
     assert result["status"] == "RELEASED"
     assert result["batchId"].startswith("BG-")
     assert mock_db.conditional_put_item.called
+
