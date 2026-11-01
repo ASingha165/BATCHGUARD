@@ -1,0 +1,60 @@
+{
+  "Comment": "BatchGuard One-Click Recall Orchestrator State Machine",
+  "StartAt": "CalculateBlastRadius",
+  "States": {
+    "CalculateBlastRadius": {
+      "Type": "Task",
+      "Resource": "${CalculateBlastRadiusFunctionArn}",
+      "Next": "ParallelRecallActions",
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "RecallFailed"
+        }
+      ]
+    },
+    "ParallelRecallActions": {
+      "Type": "Parallel",
+      "Next": "RecordAuditEntry",
+      "Branches": [
+        {
+          "StartAt": "DispatchEmergencyNotifications",
+          "States": {
+            "DispatchEmergencyNotifications": {
+              "Type": "Task",
+              "Resource": "${DispatchNotificationsFunctionArn}",
+              "End": true
+            }
+          }
+        },
+        {
+          "StartAt": "LockPOSInventory",
+          "States": {
+            "LockPOSInventory": {
+              "Type": "Task",
+              "Resource": "${LockPOSInventoryFunctionArn}",
+              "End": true
+            }
+          }
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "Next": "RecallFailed"
+        }
+      ]
+    },
+    "RecordAuditEntry": {
+      "Type": "Task",
+      "Resource": "${RecordAuditEntryFunctionArn}",
+      "End": true
+    },
+    "RecallFailed": {
+      "Type": "Fail",
+      "Error": "RecallExecutionError",
+      "Cause": "One or more recall orchestration tasks failed."
+    }
+  }
+}
+

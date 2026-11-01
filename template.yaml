@@ -1,0 +1,292 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  BatchGuard Serverless Architecture
+  One Batch. Complete Traceability. Faster Recalls.
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - staging
+      - prod
+    Description: Deployment target environment.
+  LogLevel:
+    Type: String
+    Default: INFO
+    Description: Structured logger level.
+
+Globals:
+  Function:
+    Timeout: 30
+    MemorySize: 256
+    Runtime: python3.12
+    Architectures:
+      - arm64
+    Tracing: Active
+    Environment:
+      Variables:
+        ENVIRONMENT: !Ref Environment
+        LOG_LEVEL: !Ref LogLevel
+        DYNAMODB_TABLE_NAME: !Ref BatchGuardMainTable
+        S3_EVIDENCE_BUCKET_NAME: !Ref EvidenceVaultBucket
+        SNS_RECALL_TOPIC_ARN: !Ref RecallTopic
+        STEP_FUNCTIONS_RECALL_ARN: !Ref RecallOrchestratorStateMachine
+
+Resources:
+  # ============================================================================
+  # 1. API GATEWAY
+  # ============================================================================
+  BatchGuardApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: !Ref Environment
+      Cors:
+        AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
+        AllowHeaders: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token'"
+        AllowOrigin: "'*'"
+
+  # ============================================================================
+  # 2. DYNAMODB (Single-Table Design)
+  # ============================================================================
+  BatchGuardMainTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "BatchGuard-Main-${Environment}"
+      BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+        - AttributeName: GSI1PK
+          AttributeType: S
+        - AttributeName: GSI1SK
+          AttributeType: S
+        - AttributeName: GSI2PK
+          AttributeType: S
+        - AttributeName: GSI2SK
+          AttributeType: S
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: GSI1
+          KeySchema:
+            - AttributeName: GSI1PK
+              KeyType: HASH
+            - AttributeName: GSI1SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+        - IndexName: GSI2
+          KeySchema:
+            - AttributeName: GSI2PK
+              KeyType: HASH
+            - AttributeName: GSI2SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  # ============================================================================
+  # 3. AMAZON S3 EVIDENCE VAULT (Blocked Public Access & SSE-S3 Encryption)
+  # ============================================================================
+  EvidenceVaultBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "batchguard-evidence-${Environment}-${AWS::AccountId}"
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        IgnorePublicAcls: true
+        BlockPublicPolicy: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+
+  # ============================================================================
+  # 4. AMAZON SNS NOTIFICATION FABRIC
+  # ============================================================================
+  RecallTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub "batchguard-recall-notifications-${Environment}"
+      DisplayName: BatchGuard Emergency Recall Broadcast
+
+  # ============================================================================
+  # 5. API HANDLERS (AWS LAMBDA)
+  # ============================================================================
+  BatchFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: backend/
+      Handler: handlers.batch_handler.lambda_handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref BatchGuardMainTable
+      Events:
+        ListBatches:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BatchGuardApi
+            Path: /v1/batches
+            Method: GET
+        CreateBatch:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BatchGuardApi
+            Path: /v1/batches
+            Method: POST
+        GetBatch:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BatchGuardApi
+            Path: /v1/batches/{batchId}
+            Method: GET
+        GetBatchLineage:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BatchGuardApi
+            Path: /v1/batches/{batchId}/lineage
+            Method: GET
+
+  RecallFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: backend/
+      Handler: handlers.recall_handler.lambda_handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref BatchGuardMainTable
+        - StepFunctionsExecutionPolicy:
+            StateMachineName: !GetAtt RecallOrchestratorStateMachine.Name
+      Events:
+        AssessBlastRadius:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BatchGuardApi
+            Path: /v1/recalls/assess-blast-radius
+            Method: POST
+        InitiateRecall:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BatchGuardApi
+            Path: /v1/recalls/initiate
+            Method: POST
+        ListRecalls:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BatchGuardApi
+            Path: /v1/recalls
+            Method: GET
+        AcknowledgeRecall:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BatchGuardApi
+            Path: /v1/recalls/{recallId}/acknowledge
+            Method: POST
+
+  OverviewFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: backend/
+      Handler: handlers.overview_handler.lambda_handler
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref BatchGuardMainTable
+      Events:
+        GetOverviewSummary:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BatchGuardApi
+            Path: /v1/overview/summary
+            Method: GET
+
+  # ============================================================================
+  # 6. STEP FUNCTIONS TASK WORKERS
+  # ============================================================================
+  CalculateBlastRadiusWorker:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: backend/
+      Handler: workers.calculate_blast_radius.lambda_handler
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref BatchGuardMainTable
+
+  DispatchNotificationsWorker:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: backend/
+      Handler: workers.dispatch_notifications.lambda_handler
+      Policies:
+        - SNSPublishMessagePolicy:
+            TopicName: !GetAtt RecallTopic.TopicName
+
+  LockPOSInventoryWorker:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: backend/
+      Handler: workers.lock_pos_inventory.lambda_handler
+
+  RecordAuditEntryWorker:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: backend/
+      Handler: workers.record_audit_entry.lambda_handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref BatchGuardMainTable
+
+  # ============================================================================
+  # 7. STEP FUNCTIONS STATE MACHINE
+  # ============================================================================
+  RecallOrchestratorStateMachine:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      Name: !Sub "BatchGuardRecallOrchestrator-${Environment}"
+      DefinitionUri: statemachine/recall_orchestrator.asl.json
+      DefinitionSubstitutions:
+        CalculateBlastRadiusFunctionArn: !GetAtt CalculateBlastRadiusWorker.Arn
+        DispatchNotificationsFunctionArn: !GetAtt DispatchNotificationsWorker.Arn
+        LockPOSInventoryFunctionArn: !GetAtt LockPOSInventoryWorker.Arn
+        RecordAuditEntryFunctionArn: !GetAtt RecordAuditEntryWorker.Arn
+      Policies:
+        - LambdaInvokePolicy:
+            FunctionName: !Ref CalculateBlastRadiusWorker
+        - LambdaInvokePolicy:
+            FunctionName: !Ref DispatchNotificationsWorker
+        - LambdaInvokePolicy:
+            FunctionName: !Ref LockPOSInventoryWorker
+        - LambdaInvokePolicy:
+            FunctionName: !Ref RecordAuditEntryWorker
+
+# ============================================================================
+# OUTPUTS
+# ============================================================================
+Outputs:
+  ApiGatewayEndpoint:
+    Description: Base REST API Gateway endpoint URL
+    Value: !Sub "https://${BatchGuardApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}/v1"
+  DynamoDBTableName:
+    Description: Primary Single-Table DynamoDB table name
+    Value: !Ref BatchGuardMainTable
+  EvidenceVaultBucketName:
+    Description: S3 Evidence Vault bucket name
+    Value: !Ref EvidenceVaultBucket
+  RecallTopicArn:
+    Description: Amazon SNS Recall emergency alert topic ARN
+    Value: !Ref RecallTopic
+  StepFunctionsArn:
+    Description: Recall Orchestrator Step Functions State Machine ARN
+    Value: !Ref RecallOrchestratorStateMachine
+
