@@ -247,20 +247,32 @@ class RecallService:
 
         return recall_item
 
-    def get_recall(self, recall_id: str, org_id: str = config.default_org_id) -> Dict[str, Any]:
+    @staticmethod
+    def _sanitize_recall_output(item: Dict[str, Any]) -> Dict[str, Any]:
+        """Strips internal workflow tokens (e.g. Step Functions TaskToken) from public responses."""
+        sanitized = dict(item)
+        sanitized.pop("stepFunctionsTaskToken", None)
+        return sanitized
+
+    def get_recall(
+        self,
+        recall_id: str,
+        org_id: str = config.default_org_id,
+        sanitize: bool = True,
+    ) -> Dict[str, Any]:
         """Retrieves a single recall incident by ID strictly scoped to organization."""
         pk = f"ORG#{org_id}"
         sk = f"RECALL#{recall_id}"
         item = self.db.get_item(pk, sk)
         if not item:
             raise ResourceNotFoundError(f"Recall incident '{recall_id}' not found in organization '{org_id}'.")
-        return item
+        return self._sanitize_recall_output(item) if sanitize else item
 
     def list_recalls(self, org_id: str = config.default_org_id) -> List[Dict[str, Any]]:
         """Queries all recall records strictly scoped to the organization."""
         pk = f"ORG#{org_id}"
         items, _ = self.db.query_by_pk(pk=pk, sk_prefix="RECALL#", limit=50)
-        return items
+        return [self._sanitize_recall_output(item) for item in items]
 
     def get_acknowledgements(self, recall_id: str, org_id: str = config.default_org_id) -> List[Dict[str, Any]]:
         """Queries all acknowledgement records for a given recall incident after verifying tenant ownership."""
@@ -300,6 +312,31 @@ class RecallService:
         }
 
         self.db.put_item(updated_item)
+
+        # Check overall acknowledgement progress and auto-progress lifecycle where appropriate
+        try:
+            summary = self.get_acknowledgement_summary(recall_id, org_id=org_id)
+            current_recall = self.get_recall(recall_id, org_id=org_id, sanitize=False)
+            curr_status = current_recall.get("status")
+            if curr_status in ["AWAITING_ACKNOWLEDGEMENTS", "PARTIALLY_ACKNOWLEDGED"]:
+                if summary.get("allAcknowledged") and summary.get("verifiedHoldCount") == summary.get("totalImpactedFacilities"):
+                    self.transition_recall_status(
+                        recall_id=recall_id,
+                        target_status="COMPLETED",
+                        org_id=org_id,
+                        actor=payload.acknowledgedBy,
+                        reason="All impacted facilities have verified physical quarantine holds.",
+                    )
+                elif summary.get("acknowledgedCount", 0) > 0 and curr_status != "PARTIALLY_ACKNOWLEDGED":
+                    self.transition_recall_status(
+                        recall_id=recall_id,
+                        target_status="PARTIALLY_ACKNOWLEDGED",
+                        org_id=org_id,
+                        actor=payload.acknowledgedBy,
+                    )
+        except Exception as e:
+            logger.warning(f"Could not evaluate acknowledgement progression: {e}")
+
         return updated_item
 
     def transition_recall_status(
@@ -312,7 +349,7 @@ class RecallService:
         extra_attrs: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Enforces valid state machine transitions with conditional update."""
-        recall = self.get_recall(recall_id, org_id=org_id)
+        recall = self.get_recall(recall_id, org_id=org_id, sanitize=False)
         current_status = recall.get("status", "DRAFT")
 
         valid_targets = VALID_RECALL_TRANSITIONS.get(current_status, set())
@@ -366,7 +403,7 @@ class RecallService:
         notes: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Authorizes and approves a pending recall, resuming the Step Functions execution."""
-        recall = self.get_recall(recall_id, org_id=org_id)
+        recall = self.get_recall(recall_id, org_id=org_id, sanitize=False)
         current_status = recall.get("status")
         if current_status not in ["PENDING_APPROVAL", "INITIATED"]:
             raise InvalidStateTransitionError(
@@ -414,7 +451,7 @@ class RecallService:
         org_id: str = config.default_org_id,
     ) -> Dict[str, Any]:
         """Rejects a pending recall, halting the Step Functions execution and releasing the lock."""
-        recall = self.get_recall(recall_id, org_id=org_id)
+        recall = self.get_recall(recall_id, org_id=org_id, sanitize=False)
         current_status = recall.get("status")
         if current_status not in ["PENDING_APPROVAL", "INITIATED"]:
             raise InvalidStateTransitionError(

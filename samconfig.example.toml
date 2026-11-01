@@ -1,0 +1,46 @@
+# ==============================================================================
+# BatchGuard AWS SAM Configuration Template (samconfig.example.toml)
+# Defines deployment parameter presets for dev, staging, and prod environments.
+# ==============================================================================
+
+version = 0.1
+
+[default]
+[default.global.parameters]
+stack_name = "batchguard-stack-dev"
+
+[default.build.parameters]
+cached = true
+parallel = true
+
+[default.validate.parameters]
+lint = true
+
+[default.deploy.parameters]
+capabilities = "CAPABILITY_IAM CAPABILITY_NAMED_IAM"
+confirm_changeset = true
+resolve_s3 = true
+s3_prefix = "batchguard-dev"
+region = "us-east-1"
+parameter_overrides = "Environment=dev LogLevel=INFO"
+disable_rollback = false
+
+[staging.deploy.parameters]
+stack_name = "batchguard-stack-staging"
+capabilities = "CAPABILITY_IAM CAPABILITY_NAMED_IAM"
+confirm_changeset = true
+resolve_s3 = true
+s3_prefix = "batchguard-staging"
+region = "us-east-1"
+parameter_overrides = "Environment=staging LogLevel=INFO"
+disable_rollback = false
+
+[prod.deploy.parameters]
+stack_name = "batchguard-stack-prod"
+capabilities = "CAPABILITY_IAM CAPABILITY_NAMED_IAM"
+confirm_changeset = true
+resolve_s3 = true
+s3_prefix = "batchguard-prod"
+region = "us-east-1"
+parameter_overrides = "Environment=prod LogLevel=WARN"
+disable_rollback = false

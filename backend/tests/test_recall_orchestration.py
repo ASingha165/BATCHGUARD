@@ -329,3 +329,151 @@ def test_cross_tenant_recall_approval_rejected(mock_orchestration_db):
             org_id="ORG-COMPETITOR",
         )
     assert "not found in organization 'ORG-COMPETITOR'" in str(exc_info.value)
+
+
+# ==============================================================================
+# 6. STAGE 8A REMEDIATIONS: TOKEN SANITIZATION & AUTO-PROGRESSION
+# ==============================================================================
+
+def test_task_token_sanitization_in_public_endpoints(mock_orchestration_db):
+    """Ensure stepFunctionsTaskToken is never exposed in public get_recall or list_recalls responses."""
+    service = RecallService(db=mock_orchestration_db)
+
+    # 1. get_recall must not expose token
+    recall = service.get_recall(recall_id="REC-2026-TEST", org_id="ORG-APEX-GLOBAL")
+    assert "stepFunctionsTaskToken" not in recall
+    assert recall["recallId"] == "REC-2026-TEST"
+
+    # 2. list_recalls must not expose token in items
+    mock_orchestration_db.query_by_pk.return_value = (
+        [
+            {
+                "PK": "ORG#ORG-APEX-GLOBAL",
+                "SK": "RECALL#REC-2026-TEST",
+                "recallId": "REC-2026-TEST",
+                "stepFunctionsTaskToken": "SECRET-TOKEN-1234",
+                "status": "EXECUTING",
+            }
+        ],
+        None,
+    )
+    items = service.list_recalls(org_id="ORG-APEX-GLOBAL")
+    assert len(items) == 1
+    assert "stepFunctionsTaskToken" not in items[0]
+
+
+def test_acknowledge_recall_auto_progression(mock_orchestration_db):
+    """Ensure acknowledge_recall auto-progresses status and releases lock upon full quarantine completion."""
+    recall_record = {
+        "PK": "ORG#ORG-APEX-GLOBAL",
+        "SK": "RECALL#REC-2026-TEST",
+        "recallId": "REC-2026-TEST",
+        "batchId": "BG-2024-8891-ORG",
+        "orgId": "ORG-APEX-GLOBAL",
+        "status": "AWAITING_ACKNOWLEDGEMENTS",
+        "hazardClass": "CLASS_I_CRITICAL",
+        "totalUnitsAtRisk": 1000,
+        "affectedFacilities": ["DC-DENVER-01", "DC-DALLAS-02"],
+        "createdAt": "2026-11-01T21:00:00Z",
+    }
+
+    ack1 = {
+        "PK": "RECALL#REC-2026-TEST",
+        "SK": "ACK#DC-DENVER-01",
+        "nodeId": "DC-DENVER-01",
+        "status": "PENDING",
+        "unitsAllocated": 500,
+        "unitsQuarantined": 0,
+        "physicalHoldVerified": False,
+    }
+    ack2 = {
+        "PK": "RECALL#REC-2026-TEST",
+        "SK": "ACK#DC-DALLAS-02",
+        "nodeId": "DC-DALLAS-02",
+        "status": "PENDING",
+        "unitsAllocated": 500,
+        "unitsQuarantined": 0,
+        "physicalHoldVerified": False,
+    }
+
+    def fake_get_item(pk, sk):
+        if pk == "ORG#ORG-APEX-GLOBAL" and sk == "RECALL#REC-2026-TEST":
+            return dict(recall_record)
+        if pk == "RECALL#REC-2026-TEST" and sk == "ACK#DC-DENVER-01":
+            return dict(ack1)
+        if pk == "RECALL#REC-2026-TEST" and sk == "ACK#DC-DALLAS-02":
+            return dict(ack2)
+        return None
+
+    mock_orchestration_db.get_item.side_effect = fake_get_item
+
+    # When querying acks for DC-DENVER-01 alone
+    mock_orchestration_db.query_by_pk.return_value = (
+        [
+            {"PK": "RECALL#REC-2026-TEST", "SK": "ACK#DC-DENVER-01", "nodeId": "DC-DENVER-01", "status": "HOLD_VERIFIED", "physicalHoldVerified": True, "unitsQuarantined": 500},
+            {"PK": "RECALL#REC-2026-TEST", "SK": "ACK#DC-DALLAS-02", "nodeId": "DC-DALLAS-02", "status": "PENDING", "physicalHoldVerified": False, "unitsQuarantined": 0},
+        ],
+        None,
+    )
+
+    service = RecallService(db=mock_orchestration_db)
+    req1 = AcknowledgeRecallRequest(
+        nodeId="DC-DENVER-01",
+        acknowledgedBy="ops.mgr@apex.internal",
+        unitsQuarantined=500,
+        posScanBlockApplied=True,
+        physicalHoldVerified=True,
+    )
+
+    ack_res = service.acknowledge_recall(
+        recall_id="REC-2026-TEST",
+        payload=req1,
+        org_id="ORG-APEX-GLOBAL",
+    )
+    assert ack_res["nodeId"] == "DC-DENVER-01"
+    assert ack_res["status"] == "HOLD_VERIFIED"
+
+    # Verify status transitioned to PARTIALLY_ACKNOWLEDGED
+    put_recalls = [
+        call[0][0] for call in mock_orchestration_db.put_item.call_args_list
+        if isinstance(call[0][0], dict) and call[0][0].get("SK") == "RECALL#REC-2026-TEST"
+    ]
+    assert len(put_recalls) > 0
+    assert put_recalls[-1]["status"] == "PARTIALLY_ACKNOWLEDGED"
+
+    # Update recall_record status
+    recall_record["status"] = "PARTIALLY_ACKNOWLEDGED"
+
+    # Now simulate both nodes fully verified
+    mock_orchestration_db.query_by_pk.return_value = (
+        [
+            {"PK": "RECALL#REC-2026-TEST", "SK": "ACK#DC-DENVER-01", "nodeId": "DC-DENVER-01", "status": "HOLD_VERIFIED", "physicalHoldVerified": True, "unitsQuarantined": 500},
+            {"PK": "RECALL#REC-2026-TEST", "SK": "ACK#DC-DALLAS-02", "nodeId": "DC-DALLAS-02", "status": "HOLD_VERIFIED", "physicalHoldVerified": True, "unitsQuarantined": 500},
+        ],
+        None,
+    )
+
+    req2 = AcknowledgeRecallRequest(
+        nodeId="DC-DALLAS-02",
+        acknowledgedBy="ops.mgr2@apex.internal",
+        unitsQuarantined=500,
+        posScanBlockApplied=True,
+        physicalHoldVerified=True,
+    )
+    service.acknowledge_recall(
+        recall_id="REC-2026-TEST",
+        payload=req2,
+        org_id="ORG-APEX-GLOBAL",
+    )
+
+    # Verify status transitioned to COMPLETED and active recall lock released
+    put_recalls_final = [
+        call[0][0] for call in mock_orchestration_db.put_item.call_args_list
+        if isinstance(call[0][0], dict) and call[0][0].get("SK") == "RECALL#REC-2026-TEST"
+    ]
+    assert put_recalls_final[-1]["status"] == "COMPLETED"
+
+    # Verify atomic lock was deleted
+    mock_orchestration_db.delete_item.assert_called_with(
+        pk="ORG#ORG-APEX-GLOBAL", sk="ACTIVE_RECALL#BG-2024-8891-ORG"
+    )

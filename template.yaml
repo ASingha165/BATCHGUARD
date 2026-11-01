@@ -46,6 +46,7 @@ Resources:
       StageName: !Ref Environment
       Auth:
         DefaultAuthorizer: CognitoAuthorizer
+        AddDefaultAuthorizerToCorsPreflight: false
         Authorizers:
           CognitoAuthorizer:
             UserPoolArn: !GetAtt BatchGuardUserPool.Arn
@@ -55,13 +56,15 @@ Resources:
         AllowOrigin: "'*'"
 
   # ============================================================================
-  # 2. DYNAMODB (Single-Table Design with PITR)
+  # 2. DYNAMODB (Single-Table Design with PITR & SSE)
   # ============================================================================
   BatchGuardMainTable:
     Type: AWS::DynamoDB::Table
     Properties:
       TableName: !Sub "BatchGuard-Main-${Environment}"
       BillingMode: PAY_PER_REQUEST
+      SSESpecification:
+        SSEEnabled: true
       PointInTimeRecoverySpecification:
         PointInTimeRecoveryEnabled: true
       AttributeDefinitions:
@@ -129,6 +132,24 @@ Resources:
             NoncurrentVersionExpiration:
               NoncurrentDays: 30
 
+  EvidenceVaultBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref EvidenceVaultBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: EnforceTlsRequestsOnly
+            Effect: Deny
+            Principal: '*'
+            Action: 's3:*'
+            Resource:
+              - !Sub '${EvidenceVaultBucket.Arn}/*'
+              - !GetAtt EvidenceVaultBucket.Arn
+            Condition:
+              Bool:
+                'aws:SecureTransport': 'false'
+
   # ============================================================================
   # 4. AMAZON SNS NOTIFICATION FABRIC
   # ============================================================================
@@ -189,8 +210,14 @@ Resources:
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref BatchGuardMainTable
-        - StepFunctionsExecutionPolicy:
-            StateMachineName: !GetAtt RecallOrchestratorStateMachine.Name
+        - Statement:
+            - Effect: Allow
+              Action:
+                - states:StartExecution
+                - states:DescribeExecution
+                - states:SendTaskSuccess
+                - states:SendTaskFailure
+              Resource: !Ref RecallOrchestratorStateMachine
       Events:
         AssessBlastRadius:
           Type: Api
