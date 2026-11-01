@@ -119,6 +119,8 @@ sam deploy --guided
 ## Documentation Index
 
 * [AGENTS.md](AGENTS.md) — Master Engineering Directives & Single Source of Truth
+* [Recall Orchestration Guide](docs/recall-orchestration.md) — AWS Step Functions, Human Approval Gates & State Machine
+* [Traceability Engine Specification](docs/traceability-engine.md) — Backward BFS Lineage, Cycle Severing & KDE Scoring
 * [Architecture & Workflows](docs/architecture.md) — Detailed serverless architecture & Step Functions
 * [Database Schema & Access Patterns](docs/database-schema.md) — DynamoDB table design & GSI keys
 * [API Specification](docs/api-specification.md) — Complete REST endpoint documentation

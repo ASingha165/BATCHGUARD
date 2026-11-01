@@ -1,54 +1,296 @@
 {
-  "Comment": "BatchGuard One-Click Recall Orchestrator State Machine",
-  "StartAt": "CalculateBlastRadius",
+  "Comment": "BatchGuard One-Click Recall Orchestrator Production State Machine",
+  "StartAt": "ValidateRecallRequest",
   "States": {
-    "CalculateBlastRadius": {
+    "ValidateRecallRequest": {
       "Type": "Task",
-      "Resource": "${CalculateBlastRadiusFunctionArn}",
-      "Next": "ParallelRecallActions",
-      "Catch": [
+      "Resource": "${ValidateRecallRequestFunctionArn}",
+      "Retry": [
         {
-          "ErrorEquals": ["States.ALL"],
-          "Next": "RecallFailed"
-        }
-      ]
-    },
-    "ParallelRecallActions": {
-      "Type": "Parallel",
-      "Next": "RecordAuditEntry",
-      "Branches": [
-        {
-          "StartAt": "DispatchEmergencyNotifications",
-          "States": {
-            "DispatchEmergencyNotifications": {
-              "Type": "Task",
-              "Resource": "${DispatchNotificationsFunctionArn}",
-              "End": true
-            }
-          }
-        },
-        {
-          "StartAt": "LockPOSInventory",
-          "States": {
-            "LockPOSInventory": {
-              "Type": "Task",
-              "Resource": "${LockPOSInventoryFunctionArn}",
-              "End": true
-            }
-          }
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException",
+            "Lambda.TooManyRequestsException"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2.0
         }
       ],
       "Catch": [
         {
           "ErrorEquals": ["States.ALL"],
-          "Next": "RecallFailed"
+          "ResultPath": "$.error",
+          "Next": "HandleExecutionFailure"
         }
-      ]
+      ],
+      "Next": "AssessBlastRadius"
     },
-    "RecordAuditEntry": {
+    "AssessBlastRadius": {
+      "Type": "Task",
+      "Resource": "${CalculateBlastRadiusFunctionArn}",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException",
+            "Lambda.TooManyRequestsException"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.error",
+          "Next": "HandleExecutionFailure"
+        }
+      ],
+      "Next": "EvaluateRecallRisk"
+    },
+    "EvaluateRecallRisk": {
+      "Type": "Task",
+      "Resource": "${EvaluateRecallRiskFunctionArn}",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.error",
+          "Next": "HandleExecutionFailure"
+        }
+      ],
+      "Next": "AwaitRecallApproval"
+    },
+    "AwaitRecallApproval": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke.waitForTaskToken",
+      "Parameters": {
+        "FunctionName": "${AwaitApprovalFunctionArn}",
+        "Payload": {
+          "recallId.$": "$.recallId",
+          "batchId.$": "$.batchId",
+          "orgId.$": "$.orgId",
+          "hazardClass.$": "$.hazardClass",
+          "totalUnitsAtRisk.$": "$.totalUnitsAtRisk",
+          "taskToken.$": "$$.Task.Token"
+        }
+      },
+      "TimeoutSeconds": 86400,
+      "ResultPath": "$.approvalResult",
+      "Catch": [
+        {
+          "ErrorEquals": ["States.Timeout"],
+          "ResultPath": "$.error",
+          "Next": "HandleApprovalTimeout"
+        },
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.error",
+          "Next": "HandleExecutionFailure"
+        }
+      ],
+      "Next": "EvaluateApprovalDecision"
+    },
+    "EvaluateApprovalDecision": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.approvalResult.approvalDecision",
+          "StringEquals": "APPROVED",
+          "Next": "CreateQuarantineTasks"
+        },
+        {
+          "Variable": "$.approvalResult.approvalDecision",
+          "StringEquals": "REJECTED",
+          "Next": "HandleRecallRejection"
+        }
+      ],
+      "Default": "HandleRecallRejection"
+    },
+    "CreateQuarantineTasks": {
+      "Type": "Task",
+      "Resource": "${CreateQuarantineTasksFunctionArn}",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.error",
+          "Next": "HandleExecutionFailure"
+        }
+      ],
+      "Next": "IdentifyCarrierIntercepts"
+    },
+    "IdentifyCarrierIntercepts": {
+      "Type": "Task",
+      "Resource": "${IdentifyCarrierInterceptsFunctionArn}",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.error",
+          "Next": "HandleExecutionFailure"
+        }
+      ],
+      "Next": "DispatchFacilityNotifications"
+    },
+    "DispatchFacilityNotifications": {
+      "Type": "Task",
+      "Resource": "${DispatchNotificationsFunctionArn}",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.error",
+          "Next": "HandleExecutionFailure"
+        }
+      ],
+      "Next": "TrackAcknowledgements"
+    },
+    "TrackAcknowledgements": {
+      "Type": "Task",
+      "Resource": "${TrackAcknowledgementsFunctionArn}",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.error",
+          "Next": "HandleExecutionFailure"
+        }
+      ],
+      "Next": "RecordRecallAudit"
+    },
+    "RecordRecallAudit": {
       "Type": "Task",
       "Resource": "${RecordAuditEntryFunctionArn}",
-      "End": true
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.error",
+          "Next": "HandleExecutionFailure"
+        }
+      ],
+      "Next": "FinalizeRecall"
+    },
+    "FinalizeRecall": {
+      "Type": "Task",
+      "Resource": "${FinalizeRecallFunctionArn}",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 3,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.error",
+          "Next": "HandleExecutionFailure"
+        }
+      ],
+      "Next": "RecallSuccess"
+    },
+    "RecallSuccess": {
+      "Type": "Succeed"
+    },
+    "HandleRecallRejection": {
+      "Type": "Task",
+      "Resource": "${HandleRejectionFunctionArn}",
+      "Next": "RecallRejected"
+    },
+    "RecallRejected": {
+      "Type": "Succeed"
+    },
+    "HandleApprovalTimeout": {
+      "Type": "Task",
+      "Resource": "${HandleTimeoutFunctionArn}",
+      "Next": "RecallTimedOut"
+    },
+    "RecallTimedOut": {
+      "Type": "Fail",
+      "Error": "RecallApprovalTimeout",
+      "Cause": "Recall approval window expired without authorized human sign-off."
+    },
+    "HandleExecutionFailure": {
+      "Type": "Task",
+      "Resource": "${HandleFailureFunctionArn}",
+      "Next": "RecallFailed"
     },
     "RecallFailed": {
       "Type": "Fail",
@@ -57,4 +299,3 @@
     }
   }
 }
-

@@ -189,7 +189,47 @@ Tracks facility-level containment sign-offs.
   * `acknowledgedAt`: ISO 8601 Timestamp
   * `disposalCertificateUrl`: String (S3 URL optional)
 
-### 3.10 Evidence Vault Document (`EVIDENCE`)
+### 3.10 Active Recall Mutex Lock (`ACTIVE_RECALL`)
+Serializes concurrent recall requests on the same batch via conditional write.
+* **PK:** `ORG#<orgId>`
+* **SK:** `ACTIVE_RECALL#<batchId>`
+* **Attributes:**
+  * `recallId`: String
+  * `batchId`: String
+  * `status`: String
+  * `lockedAt`: ISO 8601 Timestamp
+
+### 3.11 Facility Quarantine Task (`QUARANTINE_TASK`)
+Discrete execution directives issued to individual distribution facilities.
+* **PK:** `RECALL#<recallId>`
+* **SK:** `TASK#QUARANTINE#<nodeId>`
+* **GSI1PK:** `NODE#<nodeId>` | **GSI1SK:** `TASK#<taskId>`
+* **Attributes:**
+  * `taskId`: String
+  * `recallId`: String
+  * `batchId`: String
+  * `nodeId`: String
+  * `nodeName`: String
+  * `nodeType`: String
+  * `allocatedUnits`: Number
+  * `carrierInterceptRequired`: Boolean
+  * `quarantineStatus`: String (`PENDING`, `IN_PROGRESS`, `CONFIRMED`, `FAILED`)
+  * `createdAt`: ISO 8601 Timestamp
+
+### 3.12 Notification Dispatch Record (`NOTIFICATION`)
+Audit proof of Amazon SNS broadcast alerts dispatched to facilities.
+* **PK:** `RECALL#<recallId>`
+* **SK:** `NOTIFICATION#<timestamp>#<dispatchId>`
+* **Attributes:**
+  * `dispatchId`: String
+  * `recallId`: String
+  * `topicArn`: String
+  * `messageId`: String
+  * `recipientsCount`: Number
+  * `status`: String (`DISPATCHED`, `FAILED`)
+  * `dispatchedAt`: ISO 8601 Timestamp
+
+### 3.13 Evidence Vault Document (`EVIDENCE`)
 Compliance reports, testing records, and audit logs.
 * **PK:** `ORG#<orgId>`
 * **SK:** `EVIDENCE#<evidenceId>`

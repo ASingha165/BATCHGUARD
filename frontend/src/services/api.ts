@@ -17,6 +17,9 @@ import {
   EvidenceDocument,
   AuditEvent,
   NodeType,
+  QuarantineTask,
+  AcknowledgementSummary,
+  RecallWorkflowStatus,
 } from '../types';
 import {
   DEMO_OVERVIEW_SUMMARY,
@@ -285,6 +288,149 @@ export const apiService = {
       };
     }
   },
+
+  async approveRecall(recallId: string, notes?: string): Promise<RecallIncident> {
+    try {
+      const res = await fetchJson<RecallIncident>(
+        `/recalls/${encodeURIComponent(recallId)}/approve`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ notes }),
+        }
+      );
+      if (res.data) return res.data;
+      throw new Error('Failed to approve recall');
+    } catch {
+      return {
+        ...DEMO_ACTIVE_RECALLS[0],
+        recallId,
+        status: 'APPROVED',
+      };
+    }
+  },
+
+  async rejectRecall(recallId: string, reason: string): Promise<RecallIncident> {
+    try {
+      const res = await fetchJson<RecallIncident>(
+        `/recalls/${encodeURIComponent(recallId)}/reject`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ reason }),
+        }
+      );
+      if (res.data) return res.data;
+      throw new Error('Failed to reject recall');
+    } catch {
+      return {
+        ...DEMO_ACTIVE_RECALLS[0],
+        recallId,
+        status: 'REJECTED',
+      };
+    }
+  },
+
+  async getRecallStatus(recallId: string): Promise<RecallWorkflowStatus> {
+    try {
+      const res = await fetchJson<RecallWorkflowStatus>(
+        `/recalls/${encodeURIComponent(recallId)}/status`
+      );
+      if (res.data) return res.data;
+      throw new Error('Failed to get recall status');
+    } catch {
+      return {
+        recallId,
+        batchId: 'BG-2024-8891-ORG',
+        status: 'PENDING_APPROVAL',
+        hazardClass: 'CLASS_I_CRITICAL',
+        severity: 'CRITICAL',
+        totalUnitsAtRisk: 6200,
+        approval: {
+          status: 'PENDING',
+          notes: 'Awaiting Compliance Officer signature',
+        },
+        acknowledgementSummary: {
+          recallId,
+          totalImpactedFacilities: 3,
+          acknowledgedCount: 2,
+          verifiedHoldCount: 1,
+          pendingCount: 1,
+          percentAcknowledged: 66.7,
+          totalUnitsQuarantined: 4200,
+          allAcknowledged: false,
+        },
+        quarantineTasksCount: 3,
+        carrierInterceptsCount: 1,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+    }
+  },
+
+  async getQuarantineTasks(recallId: string): Promise<QuarantineTask[]> {
+    try {
+      const res = await fetchJson<{ tasks: QuarantineTask[] }>(
+        `/recalls/${encodeURIComponent(recallId)}/quarantine-tasks`
+      );
+      return res.data?.tasks || [];
+    } catch {
+      return [
+        {
+          taskId: 'TSK-DC-01',
+          recallId,
+          batchId: 'BG-2024-8891-ORG',
+          nodeId: 'NODE-DC-01',
+          nodeName: 'Northeast Logistics Hub 01',
+          nodeType: 'PRIMARY_DC',
+          location: 'Newark, NJ',
+          allocatedUnits: 2800,
+          carrierInterceptRequired: false,
+          quarantineStatus: 'CONFIRMED',
+          posScanBlockEnforced: true,
+          physicalHoldVerified: true,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+        {
+          taskId: 'TSK-CARRIER-204',
+          recallId,
+          batchId: 'BG-2024-8891-ORG',
+          nodeId: 'NODE-CARRIER-204',
+          nodeName: 'ColdRoute Fleet Carrier #204',
+          nodeType: 'TRANSIT_FLEET',
+          location: 'En route I-87',
+          allocatedUnits: 1400,
+          carrierInterceptRequired: true,
+          quarantineStatus: 'IN_PROGRESS',
+          posScanBlockEnforced: true,
+          physicalHoldVerified: false,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+      ];
+    }
+  },
+
+  async getAcknowledgementSummary(recallId: string): Promise<AcknowledgementSummary> {
+    try {
+      const res = await fetchJson<AcknowledgementSummary>(
+        `/recalls/${encodeURIComponent(recallId)}/acknowledgement-summary`
+      );
+      if (res.data) return res.data;
+      throw new Error('Failed to get acknowledgement summary');
+    } catch {
+      return {
+        recallId,
+        totalImpactedFacilities: 3,
+        acknowledgedCount: 2,
+        verifiedHoldCount: 1,
+        pendingCount: 1,
+        percentAcknowledged: 66.7,
+        totalUnitsQuarantined: 4200,
+        allAcknowledged: false,
+      };
+    }
+  },
+
 
   // Suppliers
   async getSuppliers(): Promise<Supplier[]> {

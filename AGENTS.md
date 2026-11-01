@@ -248,4 +248,20 @@ Primary Table Name: `BatchGuard-Main-{Environment}`
    * Evaluated across 6 weighted dimensions: Origin & Harvest (20%), Supplier Verification (15%), Lab Evidence (20%), Chain of Custody (15%), Delivery Timestamps (15%), and Inventory Balance (15%).
    * Scores are categorized into HIGH (>=90%), MEDIUM (70–89%), and LOW (<70%).
 
+---
+
+## 11. Step Functions Recall Orchestration & Concurrency Directives
+
+1. **Step Functions Standard Workflow:**
+   * Recall orchestration MUST execute via Step Functions Standard Workflows using `.waitForTaskToken` for human approval gates.
+   * Workflows must define bounded retries (max 3, exponential backoff) and explicit catch handlers for `States.ALL` and `States.Timeout`.
+2. **Human Approval Gate Invariants:**
+   * Emergency broadcasts and quarantine locks must pause at `AwaitRecallApproval` pending authorized sign-off.
+   * Only callers with `COMPLIANCE_OFFICER` or `ADMIN` roles derived from validated Cognito claims may approve or reject recalls.
+   * Expired approval timeouts (default 86,400s) must transition to `FAILED` with reason `APPROVAL_WINDOW_EXPIRED`; timeouts must NEVER auto-approve.
+3. **Atomic Mutual Exclusion Lock:**
+   * Concurrent recall initiation requests for the same batch must be atomically serialized using a DynamoDB conditional write on `PK=ORG#<orgId>, SK=ACTIVE_RECALL#<batchId>`.
+   * Rejection, failure, cancellation, or completion of a recall MUST release the active recall lock.
+
+
 

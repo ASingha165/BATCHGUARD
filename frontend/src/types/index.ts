@@ -18,7 +18,23 @@ export interface ApiResponse<T> {
 
 export type BatchStatus = 'RELEASED' | 'IN_TRANSIT' | 'HOLD' | 'RECALLED' | 'DESTROYED';
 export type HazardClass = 'CLASS_I_CRITICAL' | 'CLASS_II' | 'CLASS_III';
-export type RecallStatus = 'INITIATED' | 'CONTAINMENT_IN_PROGRESS' | 'CONTAINED' | 'CLOSED';
+export type RecallStatus =
+  | 'DRAFT'
+  | 'ASSESSING'
+  | 'INITIATED'
+  | 'PENDING_APPROVAL'
+  | 'APPROVED'
+  | 'REJECTED'
+  | 'EXECUTING'
+  | 'NOTIFICATION_DISPATCHED'
+  | 'AWAITING_ACKNOWLEDGEMENTS'
+  | 'PARTIALLY_ACKNOWLEDGED'
+  | 'CONTAINMENT_IN_PROGRESS'
+  | 'CONTAINED'
+  | 'COMPLETED'
+  | 'FAILED'
+  | 'CANCELLED'
+  | 'CLOSED';
 export type NodeType = 'PRIMARY_DC' | 'TRANSIT_FLEET' | 'RETAIL_STORE' | 'CROSS_DOCK';
 export type SupplierTier = 'TIER_1' | 'TIER_2';
 export type SupplierStatus = 'VERIFIED' | 'AUDIT_PENDING' | 'FLAGGED';
@@ -166,6 +182,57 @@ export interface RecallAcknowledgement {
   status: 'PENDING' | 'ACKNOWLEDGED' | 'HOLD_VERIFIED' | 'DISPOSED';
   acknowledgedBy?: string;
   acknowledgedAt?: string;
+}
+
+export interface QuarantineTask {
+  taskId: string;
+  recallId: string;
+  batchId: string;
+  nodeId: string;
+  nodeName: string;
+  nodeType: NodeType;
+  location: string;
+  allocatedUnits: number;
+  carrierInterceptRequired: boolean;
+  quarantineStatus: 'PENDING' | 'IN_PROGRESS' | 'CONFIRMED' | 'FAILED';
+  posScanBlockEnforced: boolean;
+  physicalHoldVerified: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AcknowledgementSummary {
+  recallId: string;
+  totalImpactedFacilities: number;
+  acknowledgedCount: number;
+  verifiedHoldCount: number;
+  pendingCount: number;
+  percentAcknowledged: number;
+  totalUnitsQuarantined: number;
+  allAcknowledged: boolean;
+}
+
+export interface RecallWorkflowStatus {
+  recallId: string;
+  batchId: string;
+  status: RecallStatus;
+  hazardClass: HazardClass;
+  severity: string;
+  totalUnitsAtRisk: number;
+  approval: {
+    status: 'PENDING' | 'APPROVED' | 'REJECTED';
+    approvedBy?: string;
+    approvedAt?: string;
+    rejectedBy?: string;
+    rejectedAt?: string;
+    notes?: string;
+  };
+  acknowledgementSummary: AcknowledgementSummary;
+  quarantineTasksCount: number;
+  carrierInterceptsCount: number;
+  stepFunctionsExecutionArn?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface Supplier {

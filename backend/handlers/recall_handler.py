@@ -9,8 +9,10 @@ from backend.common.logger import get_logger
 from backend.common.response import error_response, success_response
 from backend.models.schemas import (
     AcknowledgeRecallRequest,
+    ApproveRecallRequest,
     BlastRadiusRequest,
     InitiateRecallRequest,
+    RejectRecallRequest,
 )
 from backend.services.recall_service import RecallService
 
@@ -57,7 +59,53 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             )
             return success_response(data=new_recall, status_code=201, request_id=request_id)
 
-        # Route 3: POST /v1/recalls/{recallId}/acknowledge
+        # Route 3: POST /v1/recalls/{recallId}/approve
+        if http_method == "POST" and path.endswith("/approve"):
+            require_role(auth, ["COMPLIANCE_OFFICER", "ADMIN"])
+            recall_id = path_parameters.get("recallId") or path.split("/")[-2]
+            raw_body = json.loads(event.get("body") or "{}")
+            req = ApproveRecallRequest(**raw_body)
+            res = recall_service.approve_recall(
+                recall_id=recall_id,
+                approver_email=auth.user_email,
+                org_id=auth.org_id,
+                notes=req.notes,
+            )
+            return success_response(data=res, request_id=request_id)
+
+        # Route 4: POST /v1/recalls/{recallId}/reject
+        if http_method == "POST" and path.endswith("/reject"):
+            require_role(auth, ["COMPLIANCE_OFFICER", "ADMIN"])
+            recall_id = path_parameters.get("recallId") or path.split("/")[-2]
+            raw_body = json.loads(event.get("body") or "{}")
+            req = RejectRecallRequest(**raw_body)
+            res = recall_service.reject_recall(
+                recall_id=recall_id,
+                rejecter_email=auth.user_email,
+                reason=req.reason,
+                org_id=auth.org_id,
+            )
+            return success_response(data=res, request_id=request_id)
+
+        # Route 5: GET /v1/recalls/{recallId}/status
+        if http_method == "GET" and path.endswith("/status"):
+            recall_id = path_parameters.get("recallId") or path.split("/")[-2]
+            status_data = recall_service.get_recall_status(recall_id, org_id=auth.org_id)
+            return success_response(data=status_data, request_id=request_id)
+
+        # Route 6: GET /v1/recalls/{recallId}/quarantine-tasks
+        if http_method == "GET" and path.endswith("/quarantine-tasks"):
+            recall_id = path_parameters.get("recallId") or path.split("/")[-2]
+            tasks = recall_service.get_quarantine_tasks(recall_id, org_id=auth.org_id)
+            return success_response(data={"tasks": tasks}, request_id=request_id)
+
+        # Route 7: GET /v1/recalls/{recallId}/acknowledgement-summary
+        if http_method == "GET" and path.endswith("/acknowledgement-summary"):
+            recall_id = path_parameters.get("recallId") or path.split("/")[-2]
+            summary = recall_service.get_acknowledgement_summary(recall_id, org_id=auth.org_id)
+            return success_response(data=summary, request_id=request_id)
+
+        # Route 8: POST /v1/recalls/{recallId}/acknowledge
         if http_method == "POST" and path.endswith("/acknowledge"):
             recall_id = path_parameters.get("recallId") or path.split("/")[-2]
             raw_body = json.loads(event.get("body") or "{}")
@@ -65,22 +113,23 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             ack_res = recall_service.acknowledge_recall(recall_id, req, org_id=auth.org_id)
             return success_response(data=ack_res, request_id=request_id)
 
-        # Route 4: GET /v1/recalls/{recallId}/acknowledgements
+        # Route 9: GET /v1/recalls/{recallId}/acknowledgements
         if http_method == "GET" and path.endswith("/acknowledgements"):
             recall_id = path_parameters.get("recallId") or path.split("/")[-2]
             acks = recall_service.get_acknowledgements(recall_id, org_id=auth.org_id)
             return success_response(data={"acknowledgements": acks}, request_id=request_id)
 
-        # Route 5: GET /v1/recalls/{recallId}
+        # Route 10: GET /v1/recalls/{recallId}
         if http_method == "GET" and path_parameters.get("recallId"):
             recall_id = path_parameters["recallId"]
             recall = recall_service.get_recall(recall_id, org_id=auth.org_id)
             return success_response(data=recall, request_id=request_id)
 
-        # Route 6: GET /v1/recalls
+        # Route 11: GET /v1/recalls
         if http_method == "GET":
             recalls = recall_service.list_recalls(org_id=auth.org_id)
             return success_response(data={"recalls": recalls}, request_id=request_id)
+
 
         return error_response(
             code="METHOD_NOT_ALLOWED",

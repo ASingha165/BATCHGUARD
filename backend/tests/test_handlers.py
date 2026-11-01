@@ -96,3 +96,44 @@ def test_recall_handler_assess_blast_radius(mock_db):
         assert body["data"]["batchId"] == "BG-2024-8891-ORG"
         assert body["data"]["totalUnitsAtRisk"] == 4200
 
+
+def test_recall_handler_approve_and_status(mock_db):
+    mock_db.get_item.return_value = {
+        "PK": "ORG#ORG-APEX-GLOBAL",
+        "SK": "RECALL#REC-HANDLER-01",
+        "recallId": "REC-HANDLER-01",
+        "batchId": "BG-2024-8891-ORG",
+        "orgId": "ORG-APEX-GLOBAL",
+        "status": "PENDING_APPROVAL",
+        "hazardClass": "CLASS_I_CRITICAL",
+        "totalUnitsAtRisk": 4200,
+        "createdAt": "2026-11-01T21:00:00Z",
+    }
+    with patch("backend.handlers.recall_handler.recall_service.db", mock_db):
+        # 1. Approve
+        approve_event = {
+            "httpMethod": "POST",
+            "path": "/v1/recalls/REC-HANDLER-01/approve",
+            "pathParameters": {"recallId": "REC-HANDLER-01"},
+            "headers": {"X-User-Roles": "COMPLIANCE_OFFICER"},
+            "body": json.dumps({"notes": "Approved for emergency containment"}),
+        }
+        res = recall_handler.lambda_handler(approve_event, DummyContext())
+        assert res["statusCode"] == 200
+        body = json.loads(res["body"])
+        assert body["success"] is True
+        assert body["data"]["status"] == "APPROVED"
+
+        # 2. Get Status
+        status_event = {
+            "httpMethod": "GET",
+            "path": "/v1/recalls/REC-HANDLER-01/status",
+            "pathParameters": {"recallId": "REC-HANDLER-01"},
+        }
+        res_status = recall_handler.lambda_handler(status_event, DummyContext())
+        assert res_status["statusCode"] == 200
+        body_status = json.loads(res_status["body"])
+        assert body_status["success"] is True
+        assert body_status["data"]["recallId"] == "REC-HANDLER-01"
+
+

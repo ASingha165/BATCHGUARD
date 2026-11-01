@@ -44,6 +44,11 @@ Resources:
     Type: AWS::Serverless::Api
     Properties:
       StageName: !Ref Environment
+      Auth:
+        DefaultAuthorizer: CognitoAuthorizer
+        Authorizers:
+          CognitoAuthorizer:
+            UserPoolArn: !GetAtt BatchGuardUserPool.Arn
       Cors:
         AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
         AllowHeaders: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Amz-Security-Token,X-Organization-Id'"
@@ -223,6 +228,36 @@ Resources:
             RestApiId: !Ref BatchGuardApi
             Path: /v1/recalls/{recallId}/acknowledge
             Method: POST
+        ApproveRecall:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BatchGuardApi
+            Path: /v1/recalls/{recallId}/approve
+            Method: POST
+        RejectRecall:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BatchGuardApi
+            Path: /v1/recalls/{recallId}/reject
+            Method: POST
+        GetRecallStatus:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BatchGuardApi
+            Path: /v1/recalls/{recallId}/status
+            Method: GET
+        GetRecallQuarantineTasks:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BatchGuardApi
+            Path: /v1/recalls/{recallId}/quarantine-tasks
+            Method: GET
+        GetRecallAcknowledgementSummary:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BatchGuardApi
+            Path: /v1/recalls/{recallId}/acknowledgement-summary
+            Method: GET
 
   OverviewFunction:
     Type: AWS::Serverless::Function
@@ -357,6 +392,15 @@ Resources:
   # ============================================================================
   # 6. STEP FUNCTIONS TASK WORKERS
   # ============================================================================
+  ValidateRecallRequestWorker:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: backend/
+      Handler: workers.validate_recall_request.lambda_handler
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref BatchGuardMainTable
+
   CalculateBlastRadiusWorker:
     Type: AWS::Serverless::Function
     Properties:
@@ -364,6 +408,39 @@ Resources:
       Handler: workers.calculate_blast_radius.lambda_handler
       Policies:
         - DynamoDBReadPolicy:
+            TableName: !Ref BatchGuardMainTable
+
+  EvaluateRecallRiskWorker:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: backend/
+      Handler: workers.evaluate_recall_risk.lambda_handler
+
+  AwaitApprovalWorker:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: backend/
+      Handler: workers.await_approval.lambda_handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref BatchGuardMainTable
+
+  CreateQuarantineTasksWorker:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: backend/
+      Handler: workers.create_quarantine_tasks.lambda_handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref BatchGuardMainTable
+
+  IdentifyCarrierInterceptsWorker:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: backend/
+      Handler: workers.identify_carrier_intercepts.lambda_handler
+      Policies:
+        - DynamoDBCrudPolicy:
             TableName: !Ref BatchGuardMainTable
 
   DispatchNotificationsWorker:
@@ -374,18 +451,59 @@ Resources:
       Policies:
         - SNSPublishMessagePolicy:
             TopicName: !GetAtt RecallTopic.TopicName
+        - DynamoDBCrudPolicy:
+            TableName: !Ref BatchGuardMainTable
 
-  LockPOSInventoryWorker:
+  TrackAcknowledgementsWorker:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: backend/
-      Handler: workers.lock_pos_inventory.lambda_handler
+      Handler: workers.track_acknowledgements.lambda_handler
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref BatchGuardMainTable
 
   RecordAuditEntryWorker:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: backend/
       Handler: workers.record_audit_entry.lambda_handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref BatchGuardMainTable
+
+  FinalizeRecallWorker:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: backend/
+      Handler: workers.finalize_recall.lambda_handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref BatchGuardMainTable
+
+  HandleRejectionWorker:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: backend/
+      Handler: workers.handle_rejection.lambda_handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref BatchGuardMainTable
+
+  HandleTimeoutWorker:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: backend/
+      Handler: workers.handle_timeout.lambda_handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref BatchGuardMainTable
+
+  HandleFailureWorker:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: backend/
+      Handler: workers.handle_failure.lambda_handler
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref BatchGuardMainTable
@@ -399,19 +517,46 @@ Resources:
       Name: !Sub "BatchGuardRecallOrchestrator-${Environment}"
       DefinitionUri: statemachine/recall_orchestrator.asl.json
       DefinitionSubstitutions:
+        ValidateRecallRequestFunctionArn: !GetAtt ValidateRecallRequestWorker.Arn
         CalculateBlastRadiusFunctionArn: !GetAtt CalculateBlastRadiusWorker.Arn
+        EvaluateRecallRiskFunctionArn: !GetAtt EvaluateRecallRiskWorker.Arn
+        AwaitApprovalFunctionArn: !GetAtt AwaitApprovalWorker.Arn
+        CreateQuarantineTasksFunctionArn: !GetAtt CreateQuarantineTasksWorker.Arn
+        IdentifyCarrierInterceptsFunctionArn: !GetAtt IdentifyCarrierInterceptsWorker.Arn
         DispatchNotificationsFunctionArn: !GetAtt DispatchNotificationsWorker.Arn
-        LockPOSInventoryFunctionArn: !GetAtt LockPOSInventoryWorker.Arn
+        TrackAcknowledgementsFunctionArn: !GetAtt TrackAcknowledgementsWorker.Arn
         RecordAuditEntryFunctionArn: !GetAtt RecordAuditEntryWorker.Arn
+        FinalizeRecallFunctionArn: !GetAtt FinalizeRecallWorker.Arn
+        HandleRejectionFunctionArn: !GetAtt HandleRejectionWorker.Arn
+        HandleTimeoutFunctionArn: !GetAtt HandleTimeoutWorker.Arn
+        HandleFailureFunctionArn: !GetAtt HandleFailureWorker.Arn
       Policies:
+        - LambdaInvokePolicy:
+            FunctionName: !Ref ValidateRecallRequestWorker
         - LambdaInvokePolicy:
             FunctionName: !Ref CalculateBlastRadiusWorker
         - LambdaInvokePolicy:
+            FunctionName: !Ref EvaluateRecallRiskWorker
+        - LambdaInvokePolicy:
+            FunctionName: !Ref AwaitApprovalWorker
+        - LambdaInvokePolicy:
+            FunctionName: !Ref CreateQuarantineTasksWorker
+        - LambdaInvokePolicy:
+            FunctionName: !Ref IdentifyCarrierInterceptsWorker
+        - LambdaInvokePolicy:
             FunctionName: !Ref DispatchNotificationsWorker
         - LambdaInvokePolicy:
-            FunctionName: !Ref LockPOSInventoryWorker
+            FunctionName: !Ref TrackAcknowledgementsWorker
         - LambdaInvokePolicy:
             FunctionName: !Ref RecordAuditEntryWorker
+        - LambdaInvokePolicy:
+            FunctionName: !Ref FinalizeRecallWorker
+        - LambdaInvokePolicy:
+            FunctionName: !Ref HandleRejectionWorker
+        - LambdaInvokePolicy:
+            FunctionName: !Ref HandleTimeoutWorker
+        - LambdaInvokePolicy:
+            FunctionName: !Ref HandleFailureWorker
 
   # ============================================================================
   # 8. AMAZON COGNITO USER POOL (Tenant Identity & MFA Strategy)

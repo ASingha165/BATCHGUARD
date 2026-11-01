@@ -39,3 +39,11 @@ class IdempotencyConflictError(BatchGuardException):
     def __init__(self, message: str, details=None):
         super().__init__(message, code="IDEMPOTENCY_CONFLICT", status_code=409, details=details)
 
+
+class InvalidStateTransitionError(BatchGuardException):
+    """Raised when an illegal recall state transition is attempted."""
+
+    def __init__(self, message: str, details=None):
+        super().__init__(message, code="INVALID_STATE_TRANSITION", status_code=400, details=details)
+
+

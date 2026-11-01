@@ -1,6 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { apiService } from '../services/api';
-import { RecallIncident, RecallAcknowledgement, BlastRadiusAssessment } from '../types';
+import {
+  RecallIncident,
+  RecallAcknowledgement,
+  BlastRadiusAssessment,
+  QuarantineTask,
+  AcknowledgementSummary,
+  RecallWorkflowStatus,
+} from '../types';
 import { Button } from '../components/common/Button';
 import { useToast } from '../components/common/Toast';
 
@@ -8,6 +15,9 @@ export const RecallOpsPage: React.FC = () => {
   const { addToast } = useToast();
   const [recalls, setRecalls] = useState<RecallIncident[]>([]);
   const [acknowledgements, setAcknowledgements] = useState<RecallAcknowledgement[]>([]);
+  const [quarantineTasks, setQuarantineTasks] = useState<QuarantineTask[]>([]);
+  const [workflowStatus, setWorkflowStatus] = useState<RecallWorkflowStatus | null>(null);
+  const [ackSummary, setAckSummary] = useState<AcknowledgementSummary | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [wizardStep, setWizardStep] = useState(1);
   const [blastRadius, setBlastRadius] = useState<BlastRadiusAssessment | null>(null);
@@ -20,6 +30,8 @@ export const RecallOpsPage: React.FC = () => {
   const [otpToken, setOtpToken] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [notificationSuccess, setNotificationSuccess] = useState(false);
+  const [approvalNotes, setApprovalNotes] = useState('');
+  const [isApproving, setIsApproving] = useState(false);
 
   // Live Containment Timer simulation
   const [secondsElapsed, setSecondsElapsed] = useState(6135); // ~1h 42m 15s
@@ -47,12 +59,89 @@ export const RecallOpsPage: React.FC = () => {
       setRecalls(recList);
       setBlastRadius(blastData);
       if (recList.length > 0) {
-        const acks = await apiService.getRecallAcknowledgements(recList[0].recallId);
+        const activeRecId = recList[0].recallId;
+        const [acks, statusData, tasks, summary] = await Promise.all([
+          apiService.getRecallAcknowledgements(activeRecId),
+          apiService.getRecallStatus(activeRecId),
+          apiService.getQuarantineTasks(activeRecId),
+          apiService.getAcknowledgementSummary(activeRecId),
+        ]);
         setAcknowledgements(acks);
+        setWorkflowStatus(statusData);
+        setQuarantineTasks(tasks);
+        setAckSummary(summary);
       }
     }
     loadRecallData();
   }, [selectedBatchId]);
+
+  const handleApproveRecall = async () => {
+    if (!activeRecall) return;
+    setIsApproving(true);
+    try {
+      await apiService.approveRecall(activeRecall.recallId, approvalNotes || 'Approved by Quality Assurance Director');
+      setRecalls((prev) => prev.map((r) => (r.recallId === activeRecall.recallId ? { ...r, status: 'APPROVED' } : r)));
+      if (workflowStatus) {
+        setWorkflowStatus({
+          ...workflowStatus,
+          status: 'APPROVED',
+          approval: {
+            ...workflowStatus.approval,
+            status: 'APPROVED',
+            approvedBy: 'elena.vance@apexnutrition.internal',
+            approvedAt: new Date().toISOString(),
+          },
+        });
+      }
+      addToast({
+        type: 'success',
+        title: 'Recall Authorized & Step Functions Resumed',
+        description: `Emergency hold orders and SNS alerts released for incident ${activeRecall.recallId}.`,
+      });
+    } catch {
+      addToast({
+        type: 'error',
+        title: 'Approval Failed',
+        description: 'Unable to approve recall incident.',
+      });
+    } finally {
+      setIsApproving(false);
+    }
+  };
+
+  const handleRejectRecall = async () => {
+    if (!activeRecall) return;
+    setIsApproving(true);
+    try {
+      await apiService.rejectRecall(activeRecall.recallId, 'Sample re-test returned negative; containment aborted.');
+      setRecalls((prev) => prev.map((r) => (r.recallId === activeRecall.recallId ? { ...r, status: 'REJECTED' } : r)));
+      if (workflowStatus) {
+        setWorkflowStatus({
+          ...workflowStatus,
+          status: 'REJECTED',
+          approval: {
+            ...workflowStatus.approval,
+            status: 'REJECTED',
+            rejectedBy: 'elena.vance@apexnutrition.internal',
+            rejectedAt: new Date().toISOString(),
+          },
+        });
+      }
+      addToast({
+        type: 'warning',
+        title: 'Recall Aborted & Lock Released',
+        description: `Incident ${activeRecall.recallId} was rejected. All digital locks cleared.`,
+      });
+    } catch {
+      addToast({
+        type: 'error',
+        title: 'Rejection Failed',
+        description: 'Unable to reject recall incident.',
+      });
+    } finally {
+      setIsApproving(false);
+    }
+  };
 
   const handleSimulateBroadcast = async () => {
     const expectedPhrase = `CONFIRM-RECALL-${selectedBatchId}`;
@@ -189,6 +278,182 @@ export const RecallOpsPage: React.FC = () => {
           </div>
         )}
 
+        {/* Human Approval Gate Card (AWS Step Functions .waitForTaskToken) */}
+        {activeRecall && (activeRecall.status === 'PENDING_APPROVAL' || workflowStatus?.approval.status === 'PENDING') && (
+          <div className="rounded-xl p-space-md bg-amber-50 border border-amber-200 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-space-md">
+            <div className="flex items-start gap-space-sm">
+              <div className="w-10 h-10 rounded-full bg-amber-100 text-amber-800 flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined text-[24px]">verified_user</span>
+              </div>
+              <div className="flex flex-col">
+                <div className="flex items-center gap-space-xs">
+                  <span className="font-label-sm text-label-sm font-bold uppercase tracking-wider bg-amber-200 text-amber-900 px-2 py-0.5 rounded">
+                    Human Approval Gate Required
+                  </span>
+                  <span className="font-data-mono-sm text-data-mono-sm text-amber-800">
+                    Step Functions Task: AwaitRecallApproval
+                  </span>
+                </div>
+                <span className="font-headline-sm text-headline-sm text-amber-950 font-bold mt-1">
+                  Compliance Officer Authorization Pending
+                </span>
+                <p className="font-body-sm text-body-sm text-amber-800 max-w-2xl mt-0.5">
+                  State machine execution has halted pending cryptographic verification. Authorizing will resume Step Functions execution, release automated EDI 940 hold commands, and publish emergency SNS alerts.
+                </p>
+                <div className="mt-space-xs flex items-center gap-space-sm">
+                  <input
+                    type="text"
+                    value={approvalNotes}
+                    onChange={(e) => setApprovalNotes(e.target.value)}
+                    placeholder="Optional authorization remarks (e.g. Confirmed by QA Director)..."
+                    className="px-3 py-1.5 text-xs rounded border border-amber-300 bg-white text-slate-800 w-80 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-space-sm shrink-0">
+              <Button
+                variant="secondary"
+                size="sm"
+                icon="cancel"
+                disabled={isApproving}
+                onClick={handleRejectRecall}
+              >
+                Reject &amp; Abort
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                icon="check_circle"
+                disabled={isApproving}
+                onClick={handleApproveRecall}
+              >
+                {isApproving ? 'Authorizing...' : 'Authorize & Resume Workflow'}
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Step Functions Orchestration Lifecycle Timeline */}
+        <div className="bg-surface-container-lowest rounded-xl border border-surface-container shadow-sm p-space-md flex flex-col gap-space-sm">
+          <div className="flex items-center justify-between border-b border-surface-container pb-space-xs">
+            <div className="flex items-center gap-space-xs">
+              <span className="material-symbols-outlined text-primary text-[20px]">account_tree</span>
+              <h2 className="font-headline-sm text-headline-sm text-on-surface font-semibold">
+                AWS Step Functions Orchestration Pipeline
+              </h2>
+            </div>
+            <div className="flex items-center gap-space-xs">
+              <span className="font-label-sm text-label-sm px-2 py-0.5 rounded-full bg-primary/10 text-primary font-bold">
+                STANDARD WORKFLOW
+              </span>
+              <span className="font-data-mono-sm text-data-mono-sm text-outline">
+                STATE: {workflowStatus?.status || activeRecall?.status || 'AWAITING_ACKNOWLEDGEMENTS'}
+              </span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-space-sm pt-space-xs">
+            {/* Step 1 */}
+            <div className="p-2.5 rounded-lg bg-surface-container-low border border-surface-container flex flex-col gap-1">
+              <div className="flex items-center justify-between">
+                <span className="font-label-sm text-label-sm font-bold text-secondary flex items-center gap-1">
+                  <span className="material-symbols-outlined text-[14px]">check_circle</span> 1. Validation
+                </span>
+                <span className="font-data-mono-sm text-[10px] text-outline">DONE</span>
+              </div>
+              <span className="text-xs text-on-surface-variant font-medium">Batch GTIN &amp; Lot Verified</span>
+            </div>
+
+            {/* Step 2 */}
+            <div className="p-2.5 rounded-lg bg-surface-container-low border border-surface-container flex flex-col gap-1">
+              <div className="flex items-center justify-between">
+                <span className="font-label-sm text-label-sm font-bold text-secondary flex items-center gap-1">
+                  <span className="material-symbols-outlined text-[14px]">check_circle</span> 2. Blast Radius
+                </span>
+                <span className="font-data-mono-sm text-[10px] text-outline">DONE</span>
+              </div>
+              <span className="text-xs text-on-surface-variant font-medium">Traceability Graph Evaluated</span>
+            </div>
+
+            {/* Step 3 */}
+            <div className="p-2.5 rounded-lg bg-surface-container-low border border-surface-container flex flex-col gap-1">
+              <div className="flex items-center justify-between">
+                <span className="font-label-sm text-label-sm font-bold text-secondary flex items-center gap-1">
+                  <span className="material-symbols-outlined text-[14px]">check_circle</span> 3. Risk Scored
+                </span>
+                <span className="font-data-mono-sm text-[10px] text-outline">DONE</span>
+              </div>
+              <span className="text-xs text-on-surface-variant font-medium">Class I Criticality Enforced</span>
+            </div>
+
+            {/* Step 4 */}
+            <div className={`p-2.5 rounded-lg border flex flex-col gap-1 ${
+              workflowStatus?.approval.status === 'APPROVED'
+                ? 'bg-surface-container-low border-surface-container'
+                : 'bg-amber-50 border-amber-300'
+            }`}>
+              <div className="flex items-center justify-between">
+                <span className={`font-label-sm text-label-sm font-bold flex items-center gap-1 ${
+                  workflowStatus?.approval.status === 'APPROVED' ? 'text-secondary' : 'text-amber-800'
+                }`}>
+                  <span className="material-symbols-outlined text-[14px]">
+                    {workflowStatus?.approval.status === 'APPROVED' ? 'check_circle' : 'pending'}
+                  </span>
+                  4. Approval Gate
+                </span>
+                <span className="font-data-mono-sm text-[10px] text-outline">
+                  {workflowStatus?.approval.status === 'APPROVED' ? 'APPROVED' : 'WAITING'}
+                </span>
+              </div>
+              <span className="text-xs text-on-surface-variant font-medium">2FA &amp; Role Gate Enforced</span>
+            </div>
+
+            {/* Step 5 */}
+            <div className="p-2.5 rounded-lg bg-surface-container-low border border-surface-container flex flex-col gap-1">
+              <div className="flex items-center justify-between">
+                <span className="font-label-sm text-label-sm font-bold text-secondary flex items-center gap-1">
+                  <span className="material-symbols-outlined text-[14px]">check_circle</span> 5. Quarantine
+                </span>
+                <span className="font-data-mono-sm text-[10px] text-outline">ACTIVE</span>
+              </div>
+              <span className="text-xs text-on-surface-variant font-medium">EDI 940 &amp; POS Scan-Blocks</span>
+            </div>
+
+            {/* Step 6 */}
+            <div className="p-2.5 rounded-lg bg-surface-container-low border border-surface-container flex flex-col gap-1">
+              <div className="flex items-center justify-between">
+                <span className="font-label-sm text-label-sm font-bold text-secondary flex items-center gap-1">
+                  <span className="material-symbols-outlined text-[14px]">check_circle</span> 6. Broadcast
+                </span>
+                <span className="font-data-mono-sm text-[10px] text-outline">DISPATCHED</span>
+              </div>
+              <span className="text-xs text-on-surface-variant font-medium">Amazon SNS Alerts Sent</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Carrier Intercept Urgent Alert Banner (if carrier tasks present) */}
+        {quarantineTasks.some((t) => t.carrierInterceptRequired) && (
+          <div className="p-space-md rounded-xl bg-orange-50 border border-orange-200 shadow-sm flex items-start gap-space-sm">
+            <span className="material-symbols-outlined text-orange-600 text-[24px] shrink-0 mt-0.5">local_shipping</span>
+            <div className="flex flex-col flex-1">
+              <div className="flex items-center gap-space-xs">
+                <span className="font-label-sm text-label-sm font-bold text-orange-900 uppercase">
+                  Active Transit Intercept Ordered
+                </span>
+                <span className="font-data-mono-sm text-data-mono-sm text-orange-700">
+                  {quarantineTasks.filter((t) => t.carrierInterceptRequired).length} In-Transit Line-Haul Shipments
+                </span>
+              </div>
+              <p className="font-body-sm text-body-sm text-orange-800 mt-0.5">
+                Urgent re-route order issued to carrier dispatchers. En route trucks are instructed to bypass standard retail delivery docks and divert to Secure Quarantine Depot C.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* KPI Summary Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-space-md">
           {/* KPI 1 */}
@@ -234,11 +499,18 @@ export const RecallOpsPage: React.FC = () => {
               </span>
             </div>
             <div className="my-space-sm flex items-baseline gap-space-xs">
-              <span className="font-headline-lg text-headline-lg text-on-surface font-bold tnum">91.7%</span>
-              <span className="font-label-sm text-label-sm text-secondary font-semibold">44 of 48 nodes</span>
+              <span className="font-headline-lg text-headline-lg text-on-surface font-bold tnum">
+                {ackSummary ? `${ackSummary.percentAcknowledged}%` : '91.7%'}
+              </span>
+              <span className="font-label-sm text-label-sm text-secondary font-semibold">
+                {ackSummary ? `${ackSummary.acknowledgedCount} of ${ackSummary.totalImpactedFacilities} nodes` : '44 of 48 nodes'}
+              </span>
             </div>
             <div className="w-full bg-surface-container rounded-full h-1.5 overflow-hidden">
-              <div className="bg-secondary h-full rounded-full transition-all duration-500" style={{ width: '91.7%' }} />
+              <div
+                className="bg-secondary h-full rounded-full transition-all duration-500"
+                style={{ width: `${ackSummary?.percentAcknowledged ?? 91.7}%` }}
+              />
             </div>
           </div>
 

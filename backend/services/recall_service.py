@@ -10,6 +10,7 @@ from backend.common.config import config
 from backend.common.db import DynamoDBClient, db_client
 from backend.common.exceptions import (
     IdempotencyConflictError,
+    InvalidStateTransitionError,
     ResourceNotFoundError,
     UnauthorizedRecallError,
 )
@@ -19,6 +20,23 @@ from backend.models.schemas import AcknowledgeRecallRequest, InitiateRecallReque
 from backend.services.traceability_engine import TraceabilityEngine, traceability_engine
 
 logger = get_logger("batchguard.services.recall")
+
+VALID_RECALL_TRANSITIONS: Dict[str, set] = {
+    "DRAFT": {"ASSESSING", "CANCELLED"},
+    "ASSESSING": {"PENDING_APPROVAL", "FAILED", "CANCELLED"},
+    "INITIATED": {"PENDING_APPROVAL", "APPROVED", "FAILED", "CANCELLED"},
+    "PENDING_APPROVAL": {"APPROVED", "REJECTED", "FAILED", "CANCELLED"},
+    "APPROVED": {"EXECUTING", "FAILED", "CANCELLED"},
+    "EXECUTING": {"NOTIFICATION_DISPATCHED", "FAILED", "CANCELLED"},
+    "NOTIFICATION_DISPATCHED": {"AWAITING_ACKNOWLEDGEMENTS", "FAILED"},
+    "AWAITING_ACKNOWLEDGEMENTS": {"PARTIALLY_ACKNOWLEDGED", "COMPLETED", "FAILED"},
+    "PARTIALLY_ACKNOWLEDGED": {"COMPLETED", "FAILED"},
+    "COMPLETED": set(),
+    "REJECTED": set(),
+    "FAILED": set(),
+    "CANCELLED": set(),
+}
+
 
 
 class RecallService:
@@ -96,14 +114,46 @@ class RecallService:
             sk_prefix="RECALL#",
             limit=5,
         )
-        active_recalls = [r for r in existing_recalls if r.get("status") in ["INITIATED", "CONTAINMENT_IN_PROGRESS"]]
+        active_recalls = [
+            r for r in existing_recalls
+            if r.get("status") in [
+                "INITIATED", "ASSESSING", "PENDING_APPROVAL", "APPROVED",
+                "EXECUTING", "NOTIFICATION_DISPATCHED", "AWAITING_ACKNOWLEDGEMENTS",
+                "PARTIALLY_ACKNOWLEDGED", "CONTAINMENT_IN_PROGRESS"
+            ]
+        ]
         if active_recalls:
             logger.warning(f"Recall initiation rejected: Active recall already exists for batch {payload.batchId}")
             raise IdempotencyConflictError(
                 f"An active recall incident ({active_recalls[0].get('recallId')}) is already underway for batch '{payload.batchId}'."
             )
 
+        # 4b. Atomic Mutual Exclusion Lock: DynamoDB conditional write on ACTIVE_RECALL#<batchId>
+        # Prevents simultaneous sub-second race conditions where two requests pass GSI check at same time
+        lock_item = {
+            "PK": f"ORG#{org_id}",
+            "SK": f"ACTIVE_RECALL#{payload.batchId}",
+            "recallId": f"PENDING-{payload.batchId}",
+            "batchId": payload.batchId,
+            "status": "INITIATED",
+            "lockedAt": now,
+        }
+        try:
+            self.db.conditional_put_item(
+                item=lock_item,
+                condition_expression="attribute_not_exists(PK) AND attribute_not_exists(SK)",
+            )
+        except IdempotencyConflictError:
+            logger.warning(f"Active recall conditional write lock rejected: Batch {payload.batchId} is already locked.")
+            raise IdempotencyConflictError(
+                f"An active recall lock already exists for batch '{payload.batchId}'. Simultaneous initiation rejected."
+            )
+
         recall_id = f"REC-{datetime.now().year}-{uuid.uuid4().hex[:4].upper()}"
+
+        # Update lock item with the assigned recall ID
+        lock_item["recallId"] = recall_id
+        self.db.put_item(lock_item)
 
         # 5. Assess affected units
         blast_info = self.assess_blast_radius(payload.batchId, org_id=org_id)
@@ -251,3 +301,254 @@ class RecallService:
 
         self.db.put_item(updated_item)
         return updated_item
+
+    def transition_recall_status(
+        self,
+        recall_id: str,
+        target_status: str,
+        org_id: str = config.default_org_id,
+        actor: str = "SYSTEM",
+        reason: Optional[str] = None,
+        extra_attrs: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Enforces valid state machine transitions with conditional update."""
+        recall = self.get_recall(recall_id, org_id=org_id)
+        current_status = recall.get("status", "DRAFT")
+
+        valid_targets = VALID_RECALL_TRANSITIONS.get(current_status, set())
+        if target_status != current_status and target_status not in valid_targets:
+            raise InvalidStateTransitionError(
+                f"Illegal recall transition from '{current_status}' to '{target_status}'. "
+                f"Valid transitions are: {sorted(list(valid_targets)) or 'None (Terminal)'}"
+            )
+
+        now = datetime.now(timezone.utc).isoformat()
+        updated = {
+            **recall,
+            "status": target_status,
+            "updatedAt": now,
+            **(extra_attrs or {}),
+        }
+        if reason:
+            updated["statusReason"] = reason
+
+        self.db.put_item(updated)
+
+        # Release atomic active recall lock on terminal state transitions
+        if target_status in {"REJECTED", "COMPLETED", "FAILED", "CANCELLED"}:
+            try:
+                self.db.delete_item(pk=f"ORG#{org_id}", sk=f"ACTIVE_RECALL#{recall.get('batchId')}")
+            except Exception as e:
+                logger.warning(f"Could not release active recall lock: {e}")
+
+        return updated
+
+    def save_task_token(
+        self,
+        recall_id: str,
+        task_token: str,
+        org_id: str = config.default_org_id,
+    ) -> Dict[str, Any]:
+        """Saves the Step Functions callback TaskToken and transitions recall to PENDING_APPROVAL."""
+        return self.transition_recall_status(
+            recall_id=recall_id,
+            target_status="PENDING_APPROVAL",
+            org_id=org_id,
+            actor="SYSTEM_STEP_FUNCTIONS",
+            extra_attrs={"stepFunctionsTaskToken": task_token},
+        )
+
+    def approve_recall(
+        self,
+        recall_id: str,
+        approver_email: str,
+        org_id: str = config.default_org_id,
+        notes: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Authorizes and approves a pending recall, resuming the Step Functions execution."""
+        recall = self.get_recall(recall_id, org_id=org_id)
+        current_status = recall.get("status")
+        if current_status not in ["PENDING_APPROVAL", "INITIATED"]:
+            raise InvalidStateTransitionError(
+                f"Recall '{recall_id}' cannot be approved in its current state '{current_status}'. Must be PENDING_APPROVAL."
+            )
+
+        now = datetime.now(timezone.utc).isoformat()
+        updated = self.transition_recall_status(
+            recall_id=recall_id,
+            target_status="APPROVED",
+            org_id=org_id,
+            actor=approver_email,
+            extra_attrs={
+                "approvedBy": approver_email,
+                "approvedAt": now,
+                "approvalNotes": notes or "Approved by Authorized Compliance Officer",
+            },
+        )
+
+        # Resume Step Functions callback if taskToken is present
+        task_token = recall.get("stepFunctionsTaskToken")
+        if task_token:
+            try:
+                sfn = boto3.client("stepfunctions", region_name=config.aws_region)
+                sfn.send_task_success(
+                    taskToken=task_token,
+                    output=json.dumps({
+                        "approvalDecision": "APPROVED",
+                        "approvedBy": approver_email,
+                        "approvedAt": now,
+                        "notes": notes,
+                    }),
+                )
+                logger.info(f"Resumed Step Functions execution for recall {recall_id}")
+            except Exception as e:
+                logger.warning(f"Could not resume Step Functions task token: {e}")
+
+        return updated
+
+    def reject_recall(
+        self,
+        recall_id: str,
+        rejecter_email: str,
+        reason: str,
+        org_id: str = config.default_org_id,
+    ) -> Dict[str, Any]:
+        """Rejects a pending recall, halting the Step Functions execution and releasing the lock."""
+        recall = self.get_recall(recall_id, org_id=org_id)
+        current_status = recall.get("status")
+        if current_status not in ["PENDING_APPROVAL", "INITIATED"]:
+            raise InvalidStateTransitionError(
+                f"Recall '{recall_id}' cannot be rejected in its current state '{current_status}'. Must be PENDING_APPROVAL."
+            )
+
+        now = datetime.now(timezone.utc).isoformat()
+        updated = self.transition_recall_status(
+            recall_id=recall_id,
+            target_status="REJECTED",
+            org_id=org_id,
+            actor=rejecter_email,
+            reason=reason,
+            extra_attrs={
+                "rejectedBy": rejecter_email,
+                "rejectedAt": now,
+                "rejectionReason": reason,
+            },
+        )
+
+        task_token = recall.get("stepFunctionsTaskToken")
+        if task_token:
+            try:
+                sfn = boto3.client("stepfunctions", region_name=config.aws_region)
+                sfn.send_task_success(
+                    taskToken=task_token,
+                    output=json.dumps({
+                        "approvalDecision": "REJECTED",
+                        "rejectedBy": rejecter_email,
+                        "rejectedAt": now,
+                        "reason": reason,
+                    }),
+                )
+                logger.info(f"Notified Step Functions of recall rejection for {recall_id}")
+            except Exception as e:
+                logger.warning(f"Could not notify Step Functions for token: {e}")
+
+        return updated
+
+    def create_quarantine_tasks(
+        self,
+        recall_id: str,
+        batch_id: str,
+        impacted_nodes: List[Dict[str, Any]],
+        org_id: str = config.default_org_id,
+    ) -> List[Dict[str, Any]]:
+        """Creates facility-specific quarantine task records under RECALL#<recallId>."""
+        now = datetime.now(timezone.utc).isoformat()
+        tasks = []
+        for node in impacted_nodes:
+            node_id = node.get("nodeId", "NODE-UNKNOWN")
+            task_id = f"TSK-{uuid.uuid4().hex[:6].upper()}"
+            raw_alloc = node.get("lotAllocation") or node.get("remainingUnits", 0)
+            units = int(str(raw_alloc).replace(" units", "").replace(",", "").strip())
+            is_carrier = node.get("nodeType") in ["LOGISTICS_CARRIER", "TRANSIT_FLEET"]
+
+            task_item = {
+                "PK": f"RECALL#{recall_id}",
+                "SK": f"TASK#QUARANTINE#{node_id}",
+                "GSI1PK": f"NODE#{node_id}",
+                "GSI1SK": f"TASK#{task_id}",
+                "taskId": task_id,
+                "recallId": recall_id,
+                "batchId": batch_id,
+                "nodeId": node_id,
+                "nodeName": node.get("nodeName", "Logistics Endpoint"),
+                "nodeType": node.get("nodeType", "PRIMARY_DC"),
+                "location": node.get("location", "Undisclosed Logistics Point"),
+                "allocatedUnits": units,
+                "carrierInterceptRequired": is_carrier,
+                "quarantineStatus": "PENDING",
+                "posScanBlockEnforced": True,
+                "physicalHoldVerified": False,
+                "createdAt": now,
+                "updatedAt": now,
+            }
+            self.db.put_item(task_item)
+            tasks.append(task_item)
+        return tasks
+
+    def get_quarantine_tasks(self, recall_id: str, org_id: str = config.default_org_id) -> List[Dict[str, Any]]:
+        """Retrieves all facility quarantine tasks for a recall after tenant verification."""
+        self.get_recall(recall_id, org_id=org_id)
+        pk = f"RECALL#{recall_id}"
+        items, _ = self.db.query_by_pk(pk=pk, sk_prefix="TASK#QUARANTINE#", limit=100)
+        return items
+
+    def get_acknowledgement_summary(self, recall_id: str, org_id: str = config.default_org_id) -> Dict[str, Any]:
+        """Computes live aggregated acknowledgement and quarantine metrics."""
+        acks = self.get_acknowledgements(recall_id, org_id=org_id)
+        total_nodes = len(acks)
+        acknowledged = [a for a in acks if a.get("status") in ["ACKNOWLEDGED", "HOLD_VERIFIED"]]
+        verified = [a for a in acks if a.get("physicalHoldVerified") is True]
+        total_quarantined = sum(int(a.get("unitsQuarantined", 0)) for a in acks)
+
+        percent = round((len(acknowledged) / total_nodes * 100.0), 1) if total_nodes > 0 else 0.0
+        return {
+            "recallId": recall_id,
+            "totalImpactedFacilities": total_nodes,
+            "acknowledgedCount": len(acknowledged),
+            "verifiedHoldCount": len(verified),
+            "pendingCount": total_nodes - len(acknowledged),
+            "percentAcknowledged": percent,
+            "totalUnitsQuarantined": total_quarantined,
+            "allAcknowledged": (len(acknowledged) == total_nodes) if total_nodes > 0 else False,
+        }
+
+    def get_recall_status(self, recall_id: str, org_id: str = config.default_org_id) -> Dict[str, Any]:
+        """Provides complete real-time workflow status and orchestration timeline."""
+        recall = self.get_recall(recall_id, org_id=org_id)
+        summary = self.get_acknowledgement_summary(recall_id, org_id=org_id)
+        tasks = self.get_quarantine_tasks(recall_id, org_id=org_id)
+        carrier_tasks = [t for t in tasks if t.get("carrierInterceptRequired")]
+
+        return {
+            "recallId": recall_id,
+            "batchId": recall.get("batchId"),
+            "status": recall.get("status"),
+            "hazardClass": recall.get("hazardClass"),
+            "severity": recall.get("severity"),
+            "totalUnitsAtRisk": recall.get("totalUnitsAtRisk", 0),
+            "approval": {
+                "status": "APPROVED" if recall.get("approvedAt") else ("REJECTED" if recall.get("rejectedAt") else "PENDING"),
+                "approvedBy": recall.get("approvedBy"),
+                "approvedAt": recall.get("approvedAt"),
+                "rejectedBy": recall.get("rejectedBy"),
+                "rejectedAt": recall.get("rejectedAt"),
+                "notes": recall.get("approvalNotes") or recall.get("rejectionReason"),
+            },
+            "acknowledgementSummary": summary,
+            "quarantineTasksCount": len(tasks),
+            "carrierInterceptsCount": len(carrier_tasks),
+            "stepFunctionsExecutionArn": recall.get("stepFunctionsExecutionArn"),
+            "createdAt": recall.get("createdAt"),
+            "updatedAt": recall.get("updatedAt", recall.get("createdAt")),
+        }
+

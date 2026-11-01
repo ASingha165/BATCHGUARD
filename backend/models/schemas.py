@@ -46,6 +46,15 @@ class AcknowledgeRecallRequest(BaseModel):
     acknowledgedBy: str = Field(..., min_length=2)
 
 
+class ApproveRecallRequest(BaseModel):
+    notes: Optional[str] = Field(default=None, max_length=500)
+
+
+class RejectRecallRequest(BaseModel):
+    reason: str = Field(..., min_length=3, max_length=500)
+
+
+
 class CreateSupplierRequest(BaseModel):
     supplierName: str = Field(..., min_length=2)
     tier: str = Field(default="TIER_1", pattern="^(TIER_1|TIER_2)$")

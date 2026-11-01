@@ -327,6 +327,42 @@ Lists active and past product recalls with containment metrics.
 #### `GET /v1/recalls/{recallId}`
 Fetches active containment metrics, containment percentage, and live audit ledger.
 
+#### `POST /v1/recalls/{recallId}/approve`
+Authorizes and approves a pending recall incident, resuming the waiting AWS Step Functions execution (`.waitForTaskToken`). Requires `COMPLIANCE_OFFICER` or `ADMIN` role.
+* **Request Body:**
+  ```json
+  {
+    "notes": "Lab test confirmed contamination in Lot 902-A. Proceed with quarantine."
+  }
+  ```
+* **Response `data`:**
+  ```json
+  {
+    "recallId": "REC-2024-082",
+    "status": "APPROVED",
+    "approvedBy": "elena.vance@apexnutrition.internal",
+    "approvedAt": "2026-11-01T21:45:00Z"
+  }
+  ```
+
+#### `POST /v1/recalls/{recallId}/reject`
+Rejects a pending recall incident, cancelling the Step Functions execution and releasing the atomic active recall lock. Requires `COMPLIANCE_OFFICER` or `ADMIN` role.
+* **Request Body:**
+  ```json
+  {
+    "reason": "Re-test revealed laboratory assay false positive; incident safely aborted."
+  }
+  ```
+
+#### `GET /v1/recalls/{recallId}/status`
+Retrieves comprehensive orchestration lifecycle status, Step Functions execution ARN, approval history, quarantine task counts, and carrier intercept summaries.
+
+#### `GET /v1/recalls/{recallId}/quarantine-tasks`
+Lists all facility-specific quarantine tasks generated during orchestration, including carrier intercept flags.
+
+#### `GET /v1/recalls/{recallId}/acknowledgement-summary`
+Returns real-time aggregated metrics: total impacted facilities, acknowledged count, verified hold count, pending count, and percentage acknowledged.
+
 #### `POST /v1/recalls/{recallId}/acknowledge`
 Allows an authorized facility manager or automated WMS hook to record unit quarantine.
 * **Request Body:**

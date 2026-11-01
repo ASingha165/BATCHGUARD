@@ -261,3 +261,15 @@ In high-consequence recalls, assuming missing distribution records represent zer
 $$\text{Unconfirmed Stock} = \max\left(0, \text{Initial Units} - \sum (\text{Remaining} + \text{Sold})\right)$$
 If records do not account for all manufactured units, `unconfirmedUnits` is explicitly surfaced and highlighted in warning indicators.
 
+---
+
+## 9. Step Functions Serverless Recall Orchestration
+
+### 9.1 Standard Workflow & Human Approval Gate
+Recall execution uses AWS Step Functions Standard Workflows (`statemachine/recall_orchestrator.asl.json`).
+* **Non-Blocking Callback:** The `AwaitRecallApproval` state utilizes `.waitForTaskToken`, pausing state machine execution and storing the token in DynamoDB.
+* **Server-Side Authorization:** Officers authorize or abort the incident via `POST /v1/recalls/{recallId}/approve` or `/reject`, requiring `COMPLIANCE_OFFICER` role. Resumption is triggered via `send_task_success`.
+* **Configurable Timeout:** Bounded by an 86,400s timeout. Expired timeouts transition to `HandleApprovalTimeout` and mark the incident `FAILED` (never auto-approving).
+* **Concurrency Locking:** Sub-second duplicate initiations are prevented by a DynamoDB conditional write lock (`ACTIVE_RECALL#<batchId>`).
+
+
