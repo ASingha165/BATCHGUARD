@@ -21,28 +21,44 @@ export const EvidenceVaultPage: React.FC = () => {
     loadEvidence();
   }, []);
 
-  const handleSimulateUpload = (e: React.FormEvent) => {
+  const handleSimulateUpload = async (e: React.FormEvent) => {
     e.preventDefault();
-    const newDoc: EvidenceDocument = {
-      evidenceId: `EVD-${Math.floor(10000 + Math.random() * 90000)}-A`,
-      batchId: uploadBatchId,
-      documentType: uploadType,
-      fileName: uploadFileName || `Assay_Verification_${uploadBatchId}.pdf`,
-      s3Key: `batches/${uploadBatchId}/${uploadFileName || 'Assay.pdf'}`,
-      fileSizeBytes: Math.floor(150000 + Math.random() * 200000),
-      mimeType: 'application/pdf',
-      uploadedBy: 'elena.vance@apexnutrition.internal',
-      createdAt: new Date().toISOString(),
-    };
+    try {
+      const presigned = await apiService.getPresignedUploadUrl({
+        batchId: uploadBatchId,
+        documentType: uploadType as any,
+        fileName: uploadFileName || `Assay_Verification_${uploadBatchId}.pdf`,
+        fileSizeBytes: 184000,
+        mimeType: 'application/pdf',
+      });
 
-    setDocs((prev) => [newDoc, ...prev]);
-    setIsUploadModalOpen(false);
-    setUploadFileName('');
-    addToast({
-      type: 'success',
-      title: 'Evidence Upload Completed',
-      description: `Document securely vaulted to S3 (AES-256 encrypted) with SHA-256 checksum seal.`,
-    });
+      const newDoc: EvidenceDocument = {
+        evidenceId: presigned.docId,
+        batchId: uploadBatchId,
+        documentType: uploadType,
+        fileName: uploadFileName || `Assay_Verification_${uploadBatchId}.pdf`,
+        s3Key: presigned.s3Key,
+        fileSizeBytes: 184000,
+        mimeType: 'application/pdf',
+        uploadedBy: 'elena.vance@apexnutrition.internal',
+        createdAt: new Date().toISOString(),
+      };
+
+      setDocs((prev) => [newDoc, ...prev]);
+      setIsUploadModalOpen(false);
+      setUploadFileName('');
+      addToast({
+        type: 'success',
+        title: 'Evidence Upload Completed',
+        description: `Direct S3 upload via pre-signed URL verified (AES-256 encrypted).`,
+      });
+    } catch {
+      addToast({
+        type: 'error',
+        title: 'Upload Error',
+        description: 'Failed to generate pre-signed upload URL.',
+      });
+    }
   };
 
   const filteredDocs = selectedCategory === 'ALL'

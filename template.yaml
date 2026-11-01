@@ -95,7 +95,7 @@ Resources:
             ProjectionType: ALL
 
   # ============================================================================
-  # 3. AMAZON S3 EVIDENCE VAULT (Blocked Public Access & SSE-S3 Encryption)
+  # 3. AMAZON S3 EVIDENCE VAULT (Blocked Public Access & Lifecycle Rules)
   # ============================================================================
   EvidenceVaultBucket:
     Type: AWS::S3::Bucket
@@ -112,6 +112,16 @@ Resources:
         RestrictPublicBuckets: true
       VersioningConfiguration:
         Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          - Id: CostOptimizationTransitionAndExpiry
+            Status: Enabled
+            Transitions:
+              - TransitionInDays: 90
+                StorageClass: STANDARD_IA
+            ExpirationInDays: 365
+            NoncurrentVersionExpiration:
+              NoncurrentDays: 30
 
   # ============================================================================
   # 4. AMAZON SNS NOTIFICATION FABRIC
@@ -158,6 +168,12 @@ Resources:
             RestApiId: !Ref BatchGuardApi
             Path: /v1/batches/{batchId}/lineage
             Method: GET
+        GetBatchTraceability:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BatchGuardApi
+            Path: /v1/batches/{batchId}/traceability
+            Method: GET
 
   RecallFunction:
     Type: AWS::Serverless::Function
@@ -188,6 +204,18 @@ Resources:
             RestApiId: !Ref BatchGuardApi
             Path: /v1/recalls
             Method: GET
+        GetRecall:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BatchGuardApi
+            Path: /v1/recalls/{recallId}
+            Method: GET
+        GetRecallAcknowledgements:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BatchGuardApi
+            Path: /v1/recalls/{recallId}/acknowledgements
+            Method: GET
         AcknowledgeRecall:
           Type: Api
           Properties:
@@ -210,6 +238,114 @@ Resources:
             RestApiId: !Ref BatchGuardApi
             Path: /v1/overview/summary
             Method: GET
+
+  SupplierFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: backend/
+      Handler: handlers.supplier_handler.lambda_handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref BatchGuardMainTable
+      Events:
+        ListSuppliers:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BatchGuardApi
+            Path: /v1/suppliers
+            Method: GET
+        CreateSupplier:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BatchGuardApi
+            Path: /v1/suppliers
+            Method: POST
+        GetSupplier:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BatchGuardApi
+            Path: /v1/suppliers/{supplierId}
+            Method: GET
+
+  DistributionFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: backend/
+      Handler: handlers.distribution_handler.lambda_handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref BatchGuardMainTable
+      Events:
+        ListDistributionNodes:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BatchGuardApi
+            Path: /v1/distribution/nodes
+            Method: GET
+        ListDistribution:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BatchGuardApi
+            Path: /v1/distribution
+            Method: GET
+        CreateDistributionNode:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BatchGuardApi
+            Path: /v1/distribution/nodes
+            Method: POST
+        GetDistributionNode:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BatchGuardApi
+            Path: /v1/distribution/nodes/{nodeId}
+            Method: GET
+
+  EvidenceFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: backend/
+      Handler: handlers.evidence_handler.lambda_handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref BatchGuardMainTable
+        - S3CrudPolicy:
+            BucketName: !Ref EvidenceVaultBucket
+      Events:
+        GetPresignedUrl:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BatchGuardApi
+            Path: /v1/evidence/presigned-url
+            Method: POST
+        ListEvidence:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BatchGuardApi
+            Path: /v1/evidence
+            Method: GET
+
+  AuditFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: backend/
+      Handler: handlers.audit_handler.lambda_handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref BatchGuardMainTable
+      Events:
+        ListAuditLogs:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BatchGuardApi
+            Path: /v1/audit/logs
+            Method: GET
+        CreateAuditLog:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BatchGuardApi
+            Path: /v1/audit/logs
+            Method: POST
 
   # ============================================================================
   # 6. STEP FUNCTIONS TASK WORKERS
@@ -289,4 +425,3 @@ Outputs:
   StepFunctionsArn:
     Description: Recall Orchestrator Step Functions State Machine ARN
     Value: !Ref RecallOrchestratorStateMachine
-

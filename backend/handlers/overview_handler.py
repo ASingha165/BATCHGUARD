@@ -16,8 +16,8 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
     try:
         # In single table, query active batches and active recalls
-        batches = db_client.query_by_pk(pk=f"ORG#{config.default_org_id}", sk_prefix="BATCH#", limit=100)
-        recalls = db_client.query_by_pk(pk=f"ORG#{config.default_org_id}", sk_prefix="RECALL#", limit=10)
+        batches, _ = db_client.query_by_pk(pk=f"ORG#{config.default_org_id}", sk_prefix="BATCH#", limit=100)
+        recalls, _ = db_client.query_by_pk(pk=f"ORG#{config.default_org_id}", sk_prefix="RECALL#", limit=10)
 
         overview_data = {
             "totalBatches": max(len(batches), 148920),
@@ -38,4 +38,3 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             status_code=500,
             request_id=request_id,
         )
-

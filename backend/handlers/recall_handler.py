@@ -49,7 +49,19 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             ack_res = recall_service.acknowledge_recall(recall_id, req)
             return success_response(data=ack_res, request_id=request_id)
 
-        # Route 4: GET /v1/recalls
+        # Route 4: GET /v1/recalls/{recallId}/acknowledgements
+        if http_method == "GET" and path.endswith("/acknowledgements"):
+            recall_id = path_parameters.get("recallId") or path.split("/")[-2]
+            acks = recall_service.get_acknowledgements(recall_id)
+            return success_response(data={"acknowledgements": acks}, request_id=request_id)
+
+        # Route 5: GET /v1/recalls/{recallId}
+        if http_method == "GET" and path_parameters.get("recallId"):
+            recall_id = path_parameters["recallId"]
+            recall = recall_service.get_recall(recall_id)
+            return success_response(data=recall, request_id=request_id)
+
+        # Route 6: GET /v1/recalls
         if http_method == "GET":
             recalls = recall_service.list_recalls()
             return success_response(data={"recalls": recalls}, request_id=request_id)
@@ -85,4 +97,3 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             status_code=500,
             request_id=request_id,
         )
-

@@ -2,7 +2,7 @@
 
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from backend.common.config import config
 from backend.common.db import DynamoDBClient, db_client
 from backend.common.exceptions import ResourceNotFoundError
@@ -29,15 +29,21 @@ class BatchService:
         self,
         org_id: str = config.default_org_id,
         limit: int = 50,
-    ) -> List[Dict[str, Any]]:
-        """Queries all production batches for the organization."""
+        exclusive_start_key: Optional[Dict[str, Any]] = None,
+    ) -> Tuple[List[Dict[str, Any]], Optional[Dict[str, Any]]]:
+        """Queries all production batches for the organization with pagination support."""
         pk = f"ORG#{org_id}"
-        return self.db.query_by_pk(pk=pk, sk_prefix="BATCH#", limit=limit)
+        return self.db.query_by_pk(
+            pk=pk,
+            sk_prefix="BATCH#",
+            limit=limit,
+            exclusive_start_key=exclusive_start_key,
+        )
 
     def get_lineage(self, batch_id: str) -> Dict[str, Any]:
         """Queries upstream ingredient events and downstream distribution records."""
         pk = f"BATCH#{batch_id}"
-        raw_items = self.db.query_by_pk(pk=pk, limit=100)
+        raw_items, _ = self.db.query_by_pk(pk=pk, limit=100)
 
         upstream = [i for i in raw_items if i.get("SK", "").startswith("INGREDIENT#")]
         downstream = [i for i in raw_items if i.get("SK", "").startswith("DIST#")]
@@ -82,7 +88,11 @@ class BatchService:
             "createdAt": now,
         }
 
-        self.db.put_item(batch_item)
+        # Idempotency guard: ensure batch doesn't already exist
+        self.db.conditional_put_item(
+            item=batch_item,
+            condition_expression="attribute_not_exists(PK) AND attribute_not_exists(SK)",
+        )
 
         # Store upstream ingredient items if provided
         for ing in payload.ingredients or []:
@@ -98,4 +108,3 @@ class BatchService:
             self.db.put_item(ing_item)
 
         return batch_item
-

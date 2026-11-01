@@ -3,7 +3,7 @@
 import json
 from typing import Any, Dict
 from pydantic import ValidationError as PydanticValidationError
-from backend.common.exceptions import BatchGuardException, ValidationError
+from backend.common.exceptions import BatchGuardException
 from backend.common.logger import get_logger
 from backend.common.response import error_response, success_response
 from backend.models.schemas import CreateBatchRequest
@@ -23,8 +23,8 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     logger.info(f"Incoming {http_method} request to {path}", extra={"request_id": request_id})
 
     try:
-        # Route 1: GET /v1/batches/{batchId}/lineage
-        if http_method == "GET" and path.endswith("/lineage"):
+        # Route 1: GET /v1/batches/{batchId}/lineage (or /v1/batches/{batchId}/traceability)
+        if http_method == "GET" and (path.endswith("/lineage") or path.endswith("/traceability")):
             batch_id = path_parameters.get("batchId") or path.split("/")[-2]
             lineage_data = batch_service.get_lineage(batch_id)
             return success_response(data=lineage_data, request_id=request_id)
@@ -37,8 +37,11 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
         # Route 3: GET /v1/batches
         if http_method == "GET":
-            batches = batch_service.list_batches()
-            return success_response(data={"batches": batches}, request_id=request_id)
+            batches, last_key = batch_service.list_batches()
+            return success_response(
+                data={"batches": batches, "paginationKey": last_key},
+                request_id=request_id,
+            )
 
         # Route 4: POST /v1/batches
         if http_method == "POST":
@@ -78,4 +81,3 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             status_code=500,
             request_id=request_id,
         )
-

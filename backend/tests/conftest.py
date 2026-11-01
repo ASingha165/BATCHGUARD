@@ -13,10 +13,10 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../.
 def mock_db():
     """Provides a mocked DynamoDB client for testing services in isolation."""
     mock = MagicMock()
-    # Default get_item return None
+    # Default get_item returns None
     mock.get_item.return_value = None
-    # Default query return sample distribution records
-    mock.query_by_pk.return_value = [
+
+    sample_items = [
         {
             "PK": "BATCH#BG-2024-8891-ORG",
             "SK": "DIST#NODE-DC-01",
@@ -38,5 +38,10 @@ def mock_db():
             "preCommandAction": "Re-route to Secure Depot C",
         },
     ]
-    return mock
 
+    # query_by_pk and query_gsi return (items, last_evaluated_key)
+    mock.query_by_pk.return_value = (sample_items, None)
+    mock.query_gsi.return_value = (sample_items, None)
+    mock.conditional_put_item.side_effect = lambda item, **kwargs: item
+    mock.put_item.side_effect = lambda item, **kwargs: item
+    return mock

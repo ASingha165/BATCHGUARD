@@ -76,27 +76,15 @@ export const RecallOpsPage: React.FC = () => {
 
     setIsSubmitting(true);
     try {
-      // Simulate recall initiation (Client-side simulation placeholder)
-      const simulatedRecall: RecallIncident = {
-        recallId: `REC-${Date.now().toString().slice(-4)}`,
+      const initiatedRecall = await apiService.initiateRecall({
         batchId: selectedBatchId,
-        lotNumber: 'L-8891-A',
-        gtin: '00850012345678',
-        productName: 'Organic Baby Spinach 16oz',
-        hazardClass: selectedHazardClass as any,
+        hazardClass: selectedHazardClass,
         reason: incidentReason,
-        severity: 'CRITICAL',
-        totalUnitsAtRisk: blastRadius?.totalUnitsAtRisk || 6200,
-        totalUnitsIsolated: 5800,
-        isolationPercentage: 93.5,
-        impactedNodesCount: blastRadius?.impactedNodes.length || 48,
-        status: 'INITIATED',
-        containmentWindowHours: 0.1,
-        initiatedBy: 'elena.vance@apexnutrition.internal',
-        initiatedAt: new Date().toISOString(),
-      };
+        confirmationPhrase: confirmationInput,
+        auth2FAToken: otpToken,
+      });
 
-      setRecalls((prev) => [simulatedRecall, ...prev]);
+      setRecalls((prev) => [initiatedRecall, ...prev]);
       setNotificationSuccess(true);
       addToast({
         type: 'success',

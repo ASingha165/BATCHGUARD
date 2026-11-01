@@ -29,38 +29,36 @@ export const BatchRegistryPage: React.FC = () => {
     loadBatches();
   }, [selectedFilter]);
 
-  const handleCreateBatch = (e: React.FormEvent) => {
+  const handleCreateBatch = async (e: React.FormEvent) => {
     e.preventDefault();
-    const newBatchId = `BG-2024-${Math.floor(1000 + Math.random() * 9000)}-ORG`;
-    const created: Batch = {
-      batchId: newBatchId,
-      lotNumber: newLotNumber,
-      gtin: newGtin,
-      productName: newProductName,
-      sku: 'SPN-16-ORG',
-      initialQuantity: parseInt(newQuantity) || 10000,
-      currentQuantity: parseInt(newQuantity) || 10000,
-      unitOfMeasure: 'CASES',
-      supplierId: 'SUP-882',
-      supplierName: newSupplier,
-      facilityGln: '0850012340019',
-      harvestDate: new Date().toISOString().split('T')[0],
-      productionDate: new Date().toISOString().split('T')[0],
-      expirationDate: new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0],
-      status: 'RELEASED',
-      coldChainOptimal: true,
-      currentTempCelsius: 3.3,
-      blockchainTxHash: '0x' + Math.random().toString(16).substring(2, 18),
-      createdAt: new Date().toISOString(),
-    };
+    try {
+      const created = await apiService.createBatch({
+        lotNumber: newLotNumber,
+        gtin: newGtin,
+        productName: newProductName,
+        initialQuantity: parseInt(newQuantity) || 10000,
+        unitOfMeasure: 'CASES',
+        supplierId: 'SUP-882',
+        facilityGln: '0850012340019',
+        harvestDate: new Date().toISOString().split('T')[0],
+        productionDate: new Date().toISOString().split('T')[0],
+        expirationDate: new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0],
+      });
 
-    setBatches((prev) => [created, ...prev]);
-    setIsRegisterModalOpen(false);
-    addToast({
-      type: 'success',
-      title: 'Batch Successfully Registered',
-      description: `New lot ${newBatchId} added to FSMA 204 ledger.`,
-    });
+      setBatches((prev) => [created, ...prev]);
+      setIsRegisterModalOpen(false);
+      addToast({
+        type: 'success',
+        title: 'Batch Successfully Registered',
+        description: `New lot ${created.batchId} added to traceability ledger.`,
+      });
+    } catch {
+      addToast({
+        type: 'error',
+        title: 'Registration Error',
+        description: 'Failed to record batch lot.',
+      });
+    }
   };
 
   const filtered = batches.filter(

@@ -20,29 +20,34 @@ export const SuppliersPage: React.FC = () => {
     loadSuppliers();
   }, []);
 
-  const handleAddSupplier = (e: React.FormEvent) => {
+  const handleAddSupplier = async (e: React.FormEvent) => {
     e.preventDefault();
-    const newSup: Supplier = {
-      supplierId: `SUP-${Math.floor(100 + Math.random() * 900)}`,
-      name: newSupplierName || 'New Agricultural Producer',
-      tier: 'TIER_1',
-      facilityCode: newFacilityGln || '0850012999011',
-      certifications: ['USDA Organic', 'GLOBALG.A.P.'],
-      auditScore: 98.0,
-      status: 'VERIFIED',
-      contactEmail: 'qa@partner-grower.internal',
-      updatedAt: new Date().toISOString(),
-    };
+    try {
+      const newSup = await apiService.createSupplier({
+        supplierName: newSupplierName || 'New Agricultural Producer',
+        tier: 'TIER_1',
+        facilityLocation: newFacilityGln || 'Salinas, CA',
+        primaryCrop: 'Organic Produce',
+        certifications: ['USDA Organic', 'GLOBALG.A.P.'],
+        contactEmail: 'qa@partner-grower.internal',
+      });
 
-    setSuppliers((prev) => [newSup, ...prev]);
-    setIsAddModalOpen(false);
-    setNewSupplierName('');
-    setNewFacilityGln('');
-    addToast({
-      type: 'success',
-      title: 'Supplier Enrolled',
-      description: `Partner ${newSup.name} onboarded into verified Tier 1 network.`,
-    });
+      setSuppliers((prev) => [newSup, ...prev]);
+      setIsAddModalOpen(false);
+      setNewSupplierName('');
+      setNewFacilityGln('');
+      addToast({
+        type: 'success',
+        title: 'Supplier Enrolled',
+        description: `Partner ${newSup.name} onboarded into verified Tier 1 network.`,
+      });
+    } catch {
+      addToast({
+        type: 'error',
+        title: 'Enrollment Error',
+        description: 'Failed to onboard supplier partner.',
+      });
+    }
   };
 
   return (
