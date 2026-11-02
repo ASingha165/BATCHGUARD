@@ -23,6 +23,13 @@ export const Header: React.FC<HeaderProps> = ({ currentSection = 'Operations', o
   const [loginError, setLoginError] = useState<string | null>(null);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
+  // MFA Challenge State
+  const [mfaChallenge, setMfaChallenge] = useState<{
+    session: string;
+    username: string;
+  } | null>(null);
+  const [mfaCode, setMfaCode] = useState('');
+
   useEffect(() => {
     const unsubscribeAuth = authService.onAuthChange((newSession) => {
       setSession(newSession);
@@ -44,12 +51,45 @@ export const Header: React.FC<HeaderProps> = ({ currentSection = 'Operations', o
     setIsLoggingIn(true);
 
     try {
-      await authService.login(loginEmail, loginPassword);
+      const result = await authService.login(loginEmail, loginPassword);
+      if (result.mfaRequired && result.challengeSession) {
+        setMfaChallenge({
+          session: result.challengeSession,
+          username: result.username || loginEmail,
+        });
+        return;
+      }
       setIsLoginModalOpen(false);
       setLoginEmail('');
       setLoginPassword('');
+      setMfaChallenge(null);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Authentication failed';
+      setLoginError(msg);
+    } finally {
+      setIsLoggingIn(false);
+    }
+  };
+
+  const handleMfaVerify = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!mfaChallenge) return;
+    setLoginError(null);
+    setIsLoggingIn(true);
+
+    try {
+      await authService.respondToMfaChallenge(
+        mfaChallenge.username,
+        mfaChallenge.session,
+        mfaCode.trim()
+      );
+      setIsLoginModalOpen(false);
+      setLoginEmail('');
+      setLoginPassword('');
+      setMfaCode('');
+      setMfaChallenge(null);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'MFA verification failed';
       setLoginError(msg);
     } finally {
       setIsLoggingIn(false);
@@ -59,6 +99,7 @@ export const Header: React.FC<HeaderProps> = ({ currentSection = 'Operations', o
   const handleDevLogin = () => {
     authService.loginDev();
     setIsLoginModalOpen(false);
+    setMfaChallenge(null);
   };
 
   const handleLogout = () => {
@@ -353,45 +394,101 @@ export const Header: React.FC<HeaderProps> = ({ currentSection = 'Operations', o
               </button>
             </div>
 
-            <form onSubmit={handleLogin} className="flex flex-col gap-3">
-              {loginError && (
-                <div className="p-2.5 rounded-lg bg-error-container/30 border border-error/30 text-error text-xs">
-                  {loginError}
+            {mfaChallenge ? (
+              <form onSubmit={handleMfaVerify} className="flex flex-col gap-3">
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs font-bold text-primary flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[16px]">security</span>
+                    Two-Factor Authentication Required
+                  </span>
+                  <span className="text-xs text-outline">
+                    Enter the 6-digit verification code from your authenticator app (TOTP) for user{' '}
+                    <strong className="text-on-surface">{mfaChallenge.username}</strong>.
+                  </span>
                 </div>
-              )}
 
-              <div className="flex flex-col gap-1">
-                <label className="text-xs font-semibold text-on-surface-variant">Email or Username</label>
-                <input
-                  type="text"
-                  required
-                  value={loginEmail}
-                  onChange={(e) => setLoginEmail(e.target.value)}
-                  placeholder="compliance.officer@batchguard.internal"
-                  className="px-3 py-2 rounded-lg bg-surface-container-low border border-surface-container text-sm text-on-surface focus:outline-none focus:border-primary"
-                />
-              </div>
+                {loginError && (
+                  <div className="p-2.5 rounded-lg bg-error-container/30 border border-error/30 text-error text-xs">
+                    {loginError}
+                  </div>
+                )}
 
-              <div className="flex flex-col gap-1">
-                <label className="text-xs font-semibold text-on-surface-variant">Password</label>
-                <input
-                  type="password"
-                  required
-                  value={loginPassword}
-                  onChange={(e) => setLoginPassword(e.target.value)}
-                  placeholder="••••••••••••"
-                  className="px-3 py-2 rounded-lg bg-surface-container-low border border-surface-container text-sm text-on-surface focus:outline-none focus:border-primary"
-                />
-              </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-semibold text-on-surface-variant">6-Digit MFA Code</label>
+                  <input
+                    type="text"
+                    required
+                    autoFocus
+                    maxLength={6}
+                    value={mfaCode}
+                    onChange={(e) => setMfaCode(e.target.value.replace(/\D/g, ''))}
+                    placeholder="123456"
+                    className="px-3 py-2 rounded-lg bg-surface-container-low border border-surface-container text-base text-center font-mono tracking-widest text-on-surface focus:outline-none focus:border-primary"
+                  />
+                </div>
 
-              <button
-                type="submit"
-                disabled={isLoggingIn}
-                className="mt-2 w-full py-2.5 px-4 rounded-lg bg-primary hover:bg-primary/90 text-on-primary text-sm font-semibold transition-colors disabled:opacity-50"
-              >
-                {isLoggingIn ? 'Authenticating with Cognito...' : 'Sign In'}
-              </button>
-            </form>
+                <div className="flex gap-2 mt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMfaChallenge(null);
+                      setMfaCode('');
+                      setLoginError(null);
+                    }}
+                    className="flex-1 py-2 px-3 rounded-lg bg-surface-container hover:bg-surface-container-high text-xs font-semibold text-on-surface transition-colors"
+                  >
+                    Back
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isLoggingIn || mfaCode.length !== 6}
+                    className="flex-2 py-2 px-4 rounded-lg bg-primary hover:bg-primary/90 text-on-primary text-xs font-semibold transition-colors disabled:opacity-50"
+                  >
+                    {isLoggingIn ? 'Verifying Code...' : 'Verify & Sign In'}
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <form onSubmit={handleLogin} className="flex flex-col gap-3">
+                {loginError && (
+                  <div className="p-2.5 rounded-lg bg-error-container/30 border border-error/30 text-error text-xs">
+                    {loginError}
+                  </div>
+                )}
+
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-semibold text-on-surface-variant">Email or Username</label>
+                  <input
+                    type="text"
+                    required
+                    value={loginEmail}
+                    onChange={(e) => setLoginEmail(e.target.value)}
+                    placeholder="compliance.officer@batchguard.internal"
+                    className="px-3 py-2 rounded-lg bg-surface-container-low border border-surface-container text-sm text-on-surface focus:outline-none focus:border-primary"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-semibold text-on-surface-variant">Password</label>
+                  <input
+                    type="password"
+                    required
+                    value={loginPassword}
+                    onChange={(e) => setLoginPassword(e.target.value)}
+                    placeholder="••••••••••••"
+                    className="px-3 py-2 rounded-lg bg-surface-container-low border border-surface-container text-sm text-on-surface focus:outline-none focus:border-primary"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isLoggingIn}
+                  className="mt-2 w-full py-2.5 px-4 rounded-lg bg-primary hover:bg-primary/90 text-on-primary text-sm font-semibold transition-colors disabled:opacity-50"
+                >
+                  {isLoggingIn ? 'Authenticating with Cognito...' : 'Sign In'}
+                </button>
+              </form>
+            )}
 
             <div className="pt-2 border-t border-surface-container flex flex-col gap-2">
               <span className="text-[11px] text-outline text-center">

@@ -1,7 +1,8 @@
 // ============================================================================
 // BatchGuard Amazon Cognito Authentication Service
 // Manages Cognito User Pool authentication, token lifecycle, JWT decoding,
-// session persistence, automatic token renewal, and safe development fallback.
+// session persistence, automatic token renewal, TOTP MFA challenge response,
+// and safe development fallback.
 // ============================================================================
 
 export interface UserSession {
@@ -18,6 +19,14 @@ export interface AuthTokens {
   accessToken: string;
   refreshToken?: string;
   expiresAt: number; // Unix timestamp in milliseconds
+}
+
+export interface LoginResult {
+  session?: UserSession;
+  mfaRequired?: boolean;
+  challengeName?: string;
+  challengeSession?: string;
+  username?: string;
 }
 
 type AuthChangeListener = (session: UserSession | null) => void;
@@ -133,14 +142,16 @@ class AuthService {
 
   /**
    * Authenticate against Amazon Cognito User Pool via standard InitiateAuth API.
+   * Handles immediate AuthenticationResult or returns MFA challenge requirements.
    */
-  public async login(username: string, password: string):Promise<UserSession> {
+  public async login(username: string, password: string): Promise<LoginResult> {
     if (!this.isCognitoConfigured()) {
       // In development mode when Cognito variables are unconfigured, provide a safe dev officer session
-      return this.loginDev({
+      const devSession = this.loginDev({
         username,
         email: username.includes('@') ? username : `${username}@batchguard.internal`,
       });
+      return { session: devSession };
     }
 
     const endpoint = `https://cognito-idp.${this.region}.amazonaws.com/`;
@@ -171,11 +182,80 @@ class AuthService {
       throw new Error(`[${errorCode}] ${errorMessage}`);
     }
 
+    // Handle MFA Challenge (e.g. SOFTWARE_TOKEN_MFA or SMS_MFA)
+    if (data.ChallengeName) {
+      if (data.ChallengeName === 'SOFTWARE_TOKEN_MFA' || data.ChallengeName === 'SMS_MFA') {
+        return {
+          mfaRequired: true,
+          challengeName: data.ChallengeName,
+          challengeSession: data.Session,
+          username,
+        };
+      }
+      throw new Error(`Cognito challenge '${data.ChallengeName}' is not currently supported in this client.`);
+    }
+
     const result = data.AuthenticationResult;
     if (!result || !result.IdToken) {
       throw new Error('Authentication challenge required or missing authentication tokens.');
     }
 
+    const session = this.processAuthResult(result, username);
+    return { session };
+  }
+
+  /**
+   * Completes authentication by responding to a SOFTWARE_TOKEN_MFA challenge.
+   */
+  public async respondToMfaChallenge(
+    username: string,
+    challengeSession: string,
+    mfaCode: string
+  ): Promise<UserSession> {
+    const endpoint = `https://cognito-idp.${this.region}.amazonaws.com/`;
+
+    const requestBody = {
+      ChallengeName: 'SOFTWARE_TOKEN_MFA',
+      ClientId: this.clientId,
+      ChallengeResponses: {
+        USERNAME: username,
+        SOFTWARE_TOKEN_MFA_CODE: mfaCode,
+      },
+      Session: challengeSession,
+    };
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-amz-json-1.1',
+        'X-Amz-Target': 'AWSCognitoIdentityProviderService.RespondToAuthChallenge',
+      },
+      body: JSON.stringify(requestBody),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      const errorCode = data.__type || data.code || 'AuthenticationError';
+      const errorMessage = data.message || 'MFA verification failed.';
+      throw new Error(`[${errorCode}] ${errorMessage}`);
+    }
+
+    const result = data.AuthenticationResult;
+    if (!result || !result.IdToken) {
+      throw new Error('MFA challenge failed: No authentication tokens received.');
+    }
+
+    return this.processAuthResult(result, username);
+  }
+
+  /**
+   * Processes successful Cognito AuthenticationResult, persists tokens, and notifies listeners.
+   */
+  private processAuthResult(
+    result: { IdToken: string; AccessToken: string; RefreshToken?: string; ExpiresIn?: number },
+    username: string
+  ): UserSession {
     const expiresInSeconds = result.ExpiresIn || 3600;
     const expiresAt = Date.now() + expiresInSeconds * 1000;
 

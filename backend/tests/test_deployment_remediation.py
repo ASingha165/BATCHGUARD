@@ -138,6 +138,35 @@ def test_auth_context_extraction_with_cognito_claims():
     assert ctx.is_authenticated is True
 
 
+def test_browser_headers_cannot_override_cognito_claims():
+    """Verify that client-supplied X-Organization-Id header cannot override trusted Cognito claims."""
+    event_with_spoofed_header = {
+        "headers": {
+            "X-Organization-Id": "ORG#malicious-spoofed-tenant",
+            "X-User-Id": "attacker-user",
+            "X-User-Roles": "SUPER_ADMIN",
+        },
+        "requestContext": {
+            "authorizer": {
+                "claims": {
+                    "sub": "verified-user-123",
+                    "cognito:username": "sarah.chen",
+                    "email": "sarah.chen@apexnutrition.internal",
+                    "custom:org_id": "ORG#apex-foods-north-america",
+                    "cognito:groups": "COMPLIANCE_OFFICER",
+                }
+            }
+        },
+    }
+
+    ctx = extract_auth_context(event_with_spoofed_header)
+    assert ctx.org_id == "ORG#apex-foods-north-america", (
+        "Client header X-Organization-Id must NOT override verified Cognito custom:org_id claim"
+    )
+    assert ctx.user_id == "verified-user-123"
+    assert ctx.roles == ["COMPLIANCE_OFFICER"]
+
+
 def test_tenant_boundary_enforcement():
     """Verify that cross-tenant access is strictly rejected with 403 Forbidden."""
     ctx = AuthContext(
@@ -170,3 +199,4 @@ def test_rbac_role_enforcement():
         require_role(ctx, ["COMPLIANCE_OFFICER", "ADMIN"])
 
     assert "Operation requires one of the following roles" in str(exc_info.value)
+

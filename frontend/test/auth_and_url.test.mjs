@@ -45,6 +45,34 @@ function decodeJwtPayload(token) {
   }
 }
 
+/**
+ * MFA challenge payload validation mirroring authService.login and respondToMfaChallenge
+ */
+function parseInitiateAuthResponse(data, username) {
+  if (data.ChallengeName) {
+    if (data.ChallengeName === 'SOFTWARE_TOKEN_MFA' || data.ChallengeName === 'SMS_MFA') {
+      return {
+        mfaRequired: true,
+        challengeName: data.ChallengeName,
+        challengeSession: data.Session,
+        username,
+      };
+    }
+    throw new Error(`Cognito challenge '${data.ChallengeName}' is not currently supported in this client.`);
+  }
+
+  if (data.AuthenticationResult?.IdToken) {
+    return {
+      session: {
+        idToken: data.AuthenticationResult.IdToken,
+        username,
+      },
+    };
+  }
+
+  throw new Error('Missing authentication tokens or unknown challenge');
+}
+
 test('API URL Contract - stage URL without /v1 appends /v1 cleanly', () => {
   const base = 'https://xyz123.execute-api.us-east-1.amazonaws.com/dev';
   const url = buildApiUrl(base, '/batches');
@@ -98,4 +126,46 @@ test('Cognito JWT Payload Decoder - handles invalid tokens safely', () => {
   assert.equal(decodeJwtPayload('invalid-token'), null);
   assert.equal(decodeJwtPayload('part1.part2'), null);
   assert.equal(decodeJwtPayload(''), null);
+});
+
+test('Cognito MFA Handling - detects SOFTWARE_TOKEN_MFA challenge and session', () => {
+  const cognitoChallengeResponse = {
+    ChallengeName: 'SOFTWARE_TOKEN_MFA',
+    Session: 'MFA_SESSION_TOKEN_ABC123',
+    ChallengeParameters: {
+      USER_ID_FOR_SRP: 'sarah.chen',
+    },
+  };
+
+  const result = parseInitiateAuthResponse(cognitoChallengeResponse, 'sarah.chen');
+  assert.equal(result.mfaRequired, true);
+  assert.equal(result.challengeName, 'SOFTWARE_TOKEN_MFA');
+  assert.equal(result.challengeSession, 'MFA_SESSION_TOKEN_ABC123');
+  assert.equal(result.username, 'sarah.chen');
+});
+
+test('Cognito MFA Handling - rejects unsupported challenges cleanly', () => {
+  const unsupportedResponse = {
+    ChallengeName: 'CUSTOM_CHALLENGE_UNKNOWN',
+    Session: 'SESSION_XYZ',
+  };
+
+  assert.throws(
+    () => parseInitiateAuthResponse(unsupportedResponse, 'test.user'),
+    /Cognito challenge 'CUSTOM_CHALLENGE_UNKNOWN' is not currently supported/
+  );
+});
+
+test('Cognito MFA Handling - handles direct authentication without MFA when not enrolled', () => {
+  const directResponse = {
+    AuthenticationResult: {
+      IdToken: 'valid.id.token',
+      AccessToken: 'valid.access.token',
+      ExpiresIn: 3600,
+    },
+  };
+
+  const result = parseInitiateAuthResponse(directResponse, 'compliance.officer');
+  assert.equal(result.session.idToken, 'valid.id.token');
+  assert.equal(result.session.username, 'compliance.officer');
 });
