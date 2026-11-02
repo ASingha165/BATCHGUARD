@@ -183,9 +183,9 @@ export const Header: React.FC<HeaderProps> = ({ currentSection = 'Operations', o
             </button>
 
             <div className="hidden sm:flex items-center gap-space-xs px-space-sm py-1 rounded-full bg-surface-container border border-surface-container-high">
-              <span className="w-2 h-2 rounded-full bg-secondary animate-pulse" />
+              <span className={`w-2 h-2 rounded-full ${authService.isCognitoConfigured() && !session?.isDevMode ? 'bg-secondary animate-pulse' : 'bg-warning'}`} />
               <span className="font-data-mono-sm text-data-mono-sm text-on-surface font-semibold tracking-wider">
-                US-EAST PROD
+                {authService.isCognitoConfigured() && !session?.isDevMode ? 'US-EAST PROD' : 'LOCAL DEMO MODE'}
               </span>
             </div>
 
@@ -490,18 +490,20 @@ export const Header: React.FC<HeaderProps> = ({ currentSection = 'Operations', o
               </form>
             )}
 
-            <div className="pt-2 border-t border-surface-container flex flex-col gap-2">
-              <span className="text-[11px] text-outline text-center">
-                Development Environment Active
-              </span>
-              <button
-                onClick={handleDevLogin}
-                type="button"
-                className="w-full py-2 px-3 rounded-lg bg-surface-container hover:bg-surface-container-high text-xs font-semibold text-on-surface transition-colors"
-              >
-                Sign In as Sarah Chen (Compliance Officer)
-              </button>
-            </div>
+            {!authService.isCognitoConfigured() && (
+              <div className="pt-2 border-t border-surface-container flex flex-col gap-2">
+                <span className="text-[11px] text-outline text-center">
+                  Development Environment Active
+                </span>
+                <button
+                  onClick={handleDevLogin}
+                  type="button"
+                  className="w-full py-2 px-3 rounded-lg bg-surface-container hover:bg-surface-container-high text-xs font-semibold text-on-surface transition-colors"
+                >
+                  Sign In as Sarah Chen (Compliance Officer)
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

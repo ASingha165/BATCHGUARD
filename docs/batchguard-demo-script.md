@@ -83,11 +83,11 @@
 * Highlight the quarantine verification column showing facility-by-facility physical quarantine verification (`Physical Hold Verified`).
 
 ### Speaker Script:
-> "Once broadcast, BatchGuard does not consider a recall complete simply because alerts were sent.
+> "Once broadcast, BatchGuard's protocol does not consider a recall complete simply because alerts were sent.
 >
-> As mandated by our safety directives, a recall only transitions to 'COMPLETED' when 100% of impacted facilities submit verified physical hold confirmations from their cooler managers.
+> In our domain model, a recall only transitions to 'COMPLETED' when 100% of impacted facilities submit physical hold confirmations from their warehouse leads.
 >
-> Here in the live acknowledgement ledger, compliance officers can monitor quarantine execution facility by facility, tracking pallet lock tags, retail POS scan-blocks, and verified disposal receipts in real time."
+> In this local demonstration, these receipts and pallet lock tags are simulated deterministically, showing how compliance officers will monitor quarantine execution across distribution nodes and scan-blocked retail registers."
 
 ---
 
@@ -142,3 +142,4 @@
   - Phrase: `CONFIRM-RECALL-BG-2024-8891-ORG`
   - 2FA Code: `123456`
 - [ ] Ensure audio microphone levels are clear and crisp.
+

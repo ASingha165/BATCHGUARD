@@ -93,10 +93,13 @@ export const RecallOpsPage: React.FC = () => {
           },
         });
       }
+      const isLiveBackend = Boolean(import.meta.env.VITE_API_BASE_URL);
       addToast({
         type: 'success',
-        title: 'Recall Authorized & Step Functions Resumed',
-        description: `Emergency hold orders and SNS alerts released for incident ${activeRecall.recallId}.`,
+        title: isLiveBackend ? 'Recall Authorized & Step Functions Resumed' : 'Recall Authorized (Demo Mode)',
+        description: isLiveBackend
+          ? `Emergency hold orders and SNS alerts released for incident ${activeRecall.recallId}.`
+          : `Simulated hold orders and notification dispatch recorded for incident ${activeRecall.recallId}.`,
       });
     } catch {
       addToast({
@@ -175,10 +178,13 @@ export const RecallOpsPage: React.FC = () => {
 
       setRecalls((prev) => [initiatedRecall, ...prev]);
       setNotificationSuccess(true);
+      const isLiveBackend = Boolean(import.meta.env.VITE_API_BASE_URL);
       addToast({
         type: 'success',
-        title: 'Targeted Recall Broadcasted',
-        description: `AWS Step Functions state machine execution started for ${selectedBatchId}.`,
+        title: isLiveBackend ? 'Targeted Recall Broadcasted' : 'Simulated Recall Initialized (Demo Mode)',
+        description: isLiveBackend
+          ? `AWS Step Functions state machine execution started for ${selectedBatchId}.`
+          : `Recall workflow and blast radius modeled for ${selectedBatchId}. Remote AWS execution simulated in demo mode.`,
       });
 
       setTimeout(() => {

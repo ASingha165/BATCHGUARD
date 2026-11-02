@@ -60,7 +60,7 @@ The user has explicitly mandated compliance with the **AWS Free Plan**:
 * **API Gateway:** REST API calls consume <10,000 requests during testing against the 1,000,000 free tier allowance.
 * **Step Functions:** 4,000 state transitions/month Always Free easily accommodates development and review workflows (~200 state transitions per full recall execution).
 * **CloudWatch:** All 20 Lambda log groups enforce explicit 30-day retention policies (`RetentionInDays: 30`) to prevent unbounded storage costs.
-* **Conclusion:** BatchGuard incurs **\$0.00** charges under the standard AWS Free Tier.
+* **Cost Planning Assessment:** BatchGuard is architected to operate within standard AWS Free Tier consumption allowances during normal development and demonstration workloads. However, actual AWS billing depends on live runtime usage, regional data transfer, and active account settings. No absolute zero-cost guarantee is claimed.
 
 ---
 
@@ -88,3 +88,4 @@ Because deployment to AWS account `316636858874` is currently blocked by parent 
 * **Documentation & Runbooks:** Complete.
 * **Security & Credentials:** Verified clean.
 * **Demo Environment:** Verified operational on localhost.
+

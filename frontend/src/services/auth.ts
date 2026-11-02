@@ -294,6 +294,10 @@ class AuthService {
    * Generates a local mock session with a synthetic token to enable testing.
    */
   public loginDev(customFields?: Partial<UserSession>): UserSession {
+    if (this.isCognitoConfigured() && import.meta.env.PROD) {
+      throw new Error('Development authentication fallback is disabled in production.');
+    }
+
     const expiresAt = Date.now() + 8 * 3600 * 1000; // 8 hours for dev session
 
     const session: UserSession = {
