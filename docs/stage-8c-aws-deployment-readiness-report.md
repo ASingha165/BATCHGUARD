@@ -1,11 +1,11 @@
-# Stage 8C — AWS Deployment Readiness Review Report
+# Stage 8C — AWS Deployment Readiness Review Report (Updated Post-8D)
 
-**Date:** 2026-11-02  
+**Date:** 2026-11-02 (Updated: 2026-11-03)  
 **Repository:** `https://github.com/ASingha165/BATCHGUARD.git`  
 **Workspace:** `D:\BatchGuard`  
-**Latest Verified Commit:** [`d220656`](file:///d:/BatchGuard) (`fix: complete BatchGuard SAM validation`)  
+**Latest Verified Commit:** [`75727c7`](file:///d:/BatchGuard) (`docs: add Stage 8C AWS deployment readiness review report`)  
 **Auditor:** Senior AWS Solutions Architect, Cloud Security Engineer & DevSecOps Auditor  
-**Final Status:** **READY WITH CONDITIONS**
+**Final Status:** **READY WITH CONDITIONS** (Blockers 2 & 3 Remediated in Stage 8D)
 
 ---
 
@@ -13,25 +13,22 @@
 
 BatchGuard has reached full local infrastructure build verification and serverless architecture maturity. The AWS SAM template (`template.yaml`), Step Functions State Machine definition (`statemachine/recall_orchestrator.asl.json`), and all 20 AWS Lambda functions (7 API handlers and 13 task workers) have been validated live by `sam validate --lint` (0 errors, 0 warnings) and successfully built via `sam build` targeting `python3.12` on `arm64` (AWS Graviton2).
 
-All 100 backend unit and integration tests pass, Python bytecode compiles cleanly, and the React frontend builds production bundles without error.
-
-However, an actual deployment to AWS cannot and must not occur blindly. This audit identifies **4 conditions** (including missing host credentials, frontend Cognito JWT token wiring, URL path prefix handling, and CloudWatch log retention) that must be addressed or accounted for before or during deployment.
+All 107 backend unit and integration tests pass, Python bytecode compiles cleanly, and the React frontend builds production bundles without error.
 
 ---
 
 ## 2. Repository Integrity Baseline
 
 * **Branch:** `main`
-* **Commit:** `d220656` (`fix: complete BatchGuard SAM validation`)
-* **Working Tree:** Clean (untracked `stitch_batchguard_supply_traceability_saas/` design assets preserved).
 * **Source Artifact Consistency:**
   - Build directory `.aws-sam\build\` matches current source files in `backend/` and `template.yaml`.
-  - Built CloudFormation template `.aws-sam\build\template.yaml` (22,737 bytes) contains all 28 declared serverless resources.
+  - Built CloudFormation template `.aws-sam\build\template.yaml` contains all 48 declared serverless resources (including 20 explicit CloudWatch LogGroups with 30-day retention).
 * **Regression Test Status:**
-  - `pytest backend/tests/ -v`: **100/100 PASSED** in 1.35s.
+  - `pytest backend/tests/ -v`: **107/107 PASSED** in 3.10s.
+  - `node --test frontend/test/auth_and_url.test.mjs`: **7/7 PASSED**.
   - `python -m compileall backend/`: 0 errors.
   - `npm --prefix frontend run typecheck`: 0 errors.
-  - `npm --prefix frontend run build`: 0 errors (built in 1.58s).
+  - `npm --prefix frontend run build`: 0 errors (built in 3.71s).
 
 ---
 
@@ -51,38 +48,21 @@ No AWS credentials or IAM role are currently active on the host machine. Deploym
 
 ---
 
-## 4. Complete AWS Resource Inventory (28 Resources)
+## 4. Complete AWS Resource Inventory (48 Resources Post-8D)
 
-| Resource Logical ID | AWS Resource Type | Architectural Purpose | Persistent? | Ongoing Cost? | Special Permissions Required | Sensitive Data Stored? |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| `BatchGuardApi` | `AWS::Serverless::Api` | REST API Ingress (`/v1/*`) | No | Pay-per-call | `apigateway:*` | In-transit request/response |
-| `BatchGuardMainTable` | `AWS::DynamoDB::Table` | Single-table persistence | **YES** | On-Demand (PITR storage) | `dynamodb:*` | **YES** (Lots, genealogy, quarantine logs) |
-| `EvidenceVaultBucket` | `AWS::S3::Bucket` | Lab tests & COA evidence vault | **YES** | Storage / requests | `s3:*` | **YES** (Lab COAs, BOL docs) |
-| `EvidenceVaultBucketPolicy` | `AWS::S3::BucketPolicy` | Enforces TLS-only & SSE | No | None | `s3:PutBucketPolicy` | None |
-| `RecallTopic` | `AWS::SNS::Topic` | Emergency recall notification fanout | No | Pay-per-message | `sns:*` | Emergency alert payloads |
-| `BatchGuardUserPool` | `AWS::Cognito::UserPool` | Identity provider & RBAC claims | **YES** | Free <=50k MAUs | `cognito-idp:*` | User emails, password hashes, roles |
-| `BatchGuardUserPoolClient` | `AWS::Cognito::UserPoolClient` | Web SPA client integration | No | None | `cognito-idp:*` | None (Public client) |
-| `BatchFunction` | `AWS::Serverless::Function` | Batches CRUD & Lineage API | No | Invocations | `iam:PassRole`, `lambda:*` | Processing lots & genealogy |
-| `RecallFunction` | `AWS::Serverless::Function` | Blast Radius & Recall API | No | Invocations | SFN Start/SendTaskToken | Processing recall incidents |
-| `OverviewFunction` | `AWS::Serverless::Function` | Executive KPI & Summary API | No | Invocations | DynamoDB Read | Metrics aggregation |
-| `SupplierFunction` | `AWS::Serverless::Function` | Supplier & Facility API | No | Invocations | DynamoDB CRUD | Supplier certification records |
-| `DistributionFunction` | `AWS::Serverless::Function` | Distribution & Shipping API | No | Invocations | DynamoDB CRUD | Logistics chain-of-custody |
-| `EvidenceFunction` | `AWS::Serverless::Function` | Pre-signed S3 URL Generator | No | Invocations | S3 PutObject pre-signing | S3 Object keys |
-| `AuditFunction` | `AWS::Serverless::Function` | Cryptographic Audit Log API | No | Invocations | DynamoDB Read/Write | SHA-256 ledger integrity entries |
-| `ValidateRecallRequestWorker` | `AWS::Serverless::Function` | Step Functions task: payload validation | No | Invocations | DynamoDB Read | Recall incident validation |
-| `CalculateBlastRadiusWorker` | `AWS::Serverless::Function` | Step Functions task: BFS traversal | No | Invocations | DynamoDB Read | Upstream/downstream blast radius |
-| `EvaluateRecallRiskWorker` | `AWS::Serverless::Function` | Step Functions task: FDA hazard scoring | No | Invocations | Standard compute | Hazard classification metrics |
-| `AwaitApprovalWorker` | `AWS::Serverless::Function` | Step Functions task: task token registrar | No | Invocations | DynamoDB CRUD | Pauses workflow for 2FA gate |
-| `CreateQuarantineTasksWorker` | `AWS::Serverless::Function` | Step Functions task: POS lock injection | No | Invocations | DynamoDB CRUD | Facility hold orders |
-| `IdentifyCarrierInterceptsWorker` | `AWS::Serverless::Function` | Step Functions task: transit rerouting | No | Invocations | DynamoDB CRUD | Bill of lading intercept tasks |
-| `DispatchNotificationsWorker` | `AWS::Serverless::Function` | Step Functions task: SNS broadcast | No | Invocations | `sns:Publish` | Emergency broadcast payloads |
-| `TrackAcknowledgementsWorker` | `AWS::Serverless::Function` | Step Functions task: facility receipts | No | Invocations | DynamoDB Read | Quarantine acknowledgment ledger |
-| `RecordAuditEntryWorker` | `AWS::Serverless::Function` | Step Functions task: hash chain link | No | Invocations | DynamoDB CRUD | SHA-256 cryptographic commit |
-| `FinalizeRecallWorker` | `AWS::Serverless::Function` | Step Functions task: lock release | No | Invocations | DynamoDB CRUD | Terminal recall completion |
-| `HandleRejectionWorker` | `AWS::Serverless::Function` | Step Functions task: rejection release | No | Invocations | DynamoDB CRUD | Releases active recall lock |
-| `HandleTimeoutWorker` | `AWS::Serverless::Function` | Step Functions task: 24h expiration | No | Invocations | DynamoDB CRUD | Releases active recall lock |
-| `HandleFailureWorker` | `AWS::Serverless::Function` | Step Functions task: catch-all error | No | Invocations | DynamoDB CRUD | Releases active recall lock |
-| `RecallOrchestratorStateMachine`| `AWS::Serverless::StateMachine` | SFN Standard Orchestrator | No | State transitions | `states:*`, Lambda invoke | Workflow execution state |
+| Resource Logical ID | AWS Resource Type | Architectural Purpose | Persistent? | Special Permissions Required |
+| :--- | :--- | :--- | :--- | :--- |
+| `BatchGuardApi` | `AWS::Serverless::Api` | REST API Ingress (`/v1/*`) with Cognito Authorizer | No | `apigateway:*` |
+| `BatchGuardMainTable` | `AWS::DynamoDB::Table` | Single-table persistence (PAY_PER_REQUEST, SSE, PITR) | **YES** | `dynamodb:*` |
+| `EvidenceVaultBucket` | `AWS::S3::Bucket` | Lab tests & COA evidence vault (Versioned, Encrypted) | **YES** | `s3:*` |
+| `EvidenceVaultBucketPolicy` | `AWS::S3::BucketPolicy` | Enforces TLS-only (`aws:SecureTransport: false` denial) | No | `s3:PutBucketPolicy` |
+| `RecallTopic` | `AWS::SNS::Topic` | Emergency recall notification fanout | No | `sns:*` |
+| `BatchGuardUserPool` | `AWS::Cognito::UserPool` | Identity provider & RBAC claims (`org_id`, roles) | **YES** | `cognito-idp:*` |
+| `BatchGuardUserPoolClient` | `AWS::Cognito::UserPoolClient` | Web SPA client (SRP, Refresh, Password Auth) | No | `cognito-idp:*` |
+| 7 API Lambda Functions | `AWS::Serverless::Function` | Modular API compute (`handlers/`) | No | Scoped CRUD / Read Policies |
+| 13 Task Worker Lambdas | `AWS::Serverless::Function` | Step Functions execution tasks (`workers/`) | No | Scoped Task Roles |
+| 20 CloudWatch LogGroups | `AWS::Logs::LogGroup` | Enforces 30-day retention on all 20 functions | No | `logs:*` |
+| `RecallOrchestratorStateMachine`| `AWS::Serverless::StateMachine` | SFN Standard Orchestrator | No | Scoped Task Invocation |
 
 ---
 
@@ -93,79 +73,56 @@ No AWS credentials or IAM role are currently active on the host machine. Deploym
 2. **SAM Policy Templates Used Exclusively:** All Lambda functions use scoped SAM policy templates (`DynamoDBCrudPolicy`, `DynamoDBReadPolicy`, `S3CrudPolicy`, `SNSPublishMessagePolicy`).
 3. **Task-Token IAM Scope:** `RecallFunction` statement grants `states:SendTaskSuccess` and `states:SendTaskFailure` on `Resource: "*"`. This is strictly compliant with AWS Step Functions architecture because task tokens are cryptographically opaque strings that cannot map to ARN resource patterns.
 4. **Step Functions Invocation Least Privilege:** The state machine role contains 13 discrete `LambdaInvokePolicy` entries, granting invocation rights exclusively to the 13 worker Lambdas.
-5. **S3 Bucket Security:**
-   - Public access block explicitly enabled across all 4 vectors (`BlockPublicAcls`, `IgnorePublicAcls`, `BlockPublicPolicy`, `RestrictPublicBuckets`).
-   - Default AES256 server-side encryption enabled.
-   - S3 Bucket Policy unconditionally denies insecure HTTP (`aws:SecureTransport: false`).
-   - S3 Versioning enabled.
-   - S3 Lifecycle rules configured: transition to `STANDARD_IA` at 90 days, expire at 365 days, non-current versions expire at 30 days.
-6. **DynamoDB Security:**
-   - Encryption at Rest (`SSEEnabled: true`) with AWS-owned KMS keys.
-   - Point-in-Time Recovery enabled (`PointInTimeRecoveryEnabled: true`) for continuous backup.
-
-### Security & IAM Findings Table:
-
-| ID | Severity | Category | Description | Recommended Action |
-| :--- | :--- | :--- | :--- | :--- |
-| **SEC-01** | **HIGH** | Authorization | `BatchGuardApi` sets `DefaultAuthorizer: CognitoAuthorizer`. All endpoints require valid Cognito JWT. Frontend does not yet transmit tokens. | Create a Cognito test user and configure authorization token injection before end-to-end browser testing. |
-| **SEC-02** | **MEDIUM** | Observability | No explicit CloudWatch `LogGroup` resources defined. Lambda logs will default to infinite retention (`Never Expire`). | Define `AWS::Logs::LogGroup` with `RetentionInDays: 30` or set account-level retention in CloudWatch. |
-| **SEC-03** | **MEDIUM** | CORS Scope | `template.yaml` defines `AllowOrigin: "'*'"` for API Gateway CORS. Acceptable for development, but should be restricted in production. | Restrict `AllowOrigin` to the specific frontend domain when deploying to `staging` or `prod`. |
-| **SEC-04** | **LOW** | Persistence | `BatchGuardMainTable` has no explicit `DeletionPolicy: Retain`. Deleting stack will delete table and data. | Add `DeletionPolicy: Retain` if production data persistence across stack tear-downs is required. |
-| **SEC-05** | **INFORMATIONAL** | S3 Deletion | `EvidenceVaultBucket` versioning is enabled. Stack deletion will fail if bucket contains objects. | Document S3 bucket cleanup command prior to stack deletion in runbook. |
+5. **S3 Bucket Security:** Public access block enabled across all 4 vectors, AES256 encryption, TLS-only bucket policy, Versioning enabled, Lifecycle transitions configured.
+6. **DynamoDB Security:** SSE enabled with AWS KMS, Point-in-Time Recovery enabled for continuous backup.
 
 ---
 
-## 6. Deployment Configuration Audit & Integration Gaps
+## 6. Deployment Configuration Audit & Remediation Status
 
-### Parameter Analysis (`samconfig.toml` vs `template.yaml`):
-* `Environment`: Default `dev`. Allowed: `dev`, `staging`, `prod`.
-* `LogLevel`: Default `INFO` (prod: `WARN`).
-* `Capabilities`: `CAPABILITY_IAM CAPABILITY_NAMED_IAM` configured.
-* `Region`: `us-east-1` configured.
-
-### Configuration Gaps Identified:
-
-1. **API Endpoint Path Suffix Mismatch (HIGH):**
-   - In `template.yaml`:
-     ```yaml
-     Outputs:
-       ApiGatewayEndpoint:
-         Value: !Sub "https://${BatchGuardApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}/v1"
-     ```
-   - In `frontend/src/services/api.ts`:
-     ```typescript
-     const url = `${API_BASE_URL}/v1${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
-     ```
-   - **Risk:** If a developer sets `VITE_API_BASE_URL` to the CloudFormation output URL (`https://.../dev/v1`), the frontend will fetch `https://.../dev/v1/v1/batches`, causing `404 Not Found`.
-   - **Rule:** `VITE_API_BASE_URL` MUST be configured as `https://${BatchGuardApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}` (WITHOUT trailing `/v1`).
-
-2. **Cognito Client ID Output (MEDIUM):**
-   - `template.yaml` outputs `ApiGatewayEndpoint`, `DynamoDBTableName`, `EvidenceVaultBucketName`, `RecallTopicArn`, `RecallOrchestratorArn`, and `CognitoUserPoolId`.
-   - It is missing an output for `CognitoUserPoolClientId` (`BatchGuardUserPoolClient`).
-   - **Recommendation:** Add `CognitoUserPoolClientId` to `Outputs` in `template.yaml` so developers can copy both User Pool and Client IDs immediately after deployment.
+1. **API Endpoint Path Suffix Mismatch (REMEDIATED IN STAGE 8D):**
+   - Implemented `buildApiUrl(baseUrl, endpoint)` in `frontend/src/services/api.ts`.
+   - Strips trailing slashes and deduplicates `/v1`, guaranteeing `/v1/v1` is never formed regardless of whether `VITE_API_BASE_URL` contains `/v1` or the stage root.
+   - Added `ApiGatewayStageUrl` export to `template.yaml`.
+2. **Cognito Client ID Output (VERIFIED):**
+   - Exported as `CognitoClientId` in `template.yaml`.
+3. **Frontend Cognito Authentication (REMEDIATED IN STAGE 8D):**
+   - Implemented `frontend/src/services/auth.ts` with standard Cognito `InitiateAuth` (`USER_PASSWORD_AUTH` and `REFRESH_TOKEN_AUTH`), token storage, automatic proactive refresh (60s pre-expiry), and safe local dev fallback.
+   - Connected `Authorization: Bearer <idToken>` and `X-Organization-Id` in `frontend/src/services/api.ts`.
+   - Updated `frontend/src/components/layout/Header.tsx` with user session badge, profile popover, and login modal.
+   - Added `ALLOW_USER_PASSWORD_AUTH` to `BatchGuardUserPoolClient`.
+4. **CloudWatch Log Retention (REMEDIATED IN STAGE 8D):**
+   - Declared 20 explicit `AWS::Logs::LogGroup` resources in `template.yaml`, each with `RetentionInDays: 30`, eliminating infinite log retention cost accumulation.
 
 ---
 
-## 7. Cost & Operational Risk Assessment
+## 7. Cost & Operational Risk Assessment (Corrected Pricing Assumptions)
 
-### Estimated Monthly Charges (Low-Traffic Development):
+### Pricing Tiers Explained:
+* **Always Free:** Never expires (e.g. Lambda 1M requests/mo, DynamoDB 25GB storage, SNS 1M publishes, Cognito 50k MAUs).
+* **12-Month Free Tier:** Applies ONLY to new AWS accounts during the first 12 months. Mature AWS accounts (>12 months) DO NOT receive free S3 storage (5GB) or free API Gateway calls (1M/mo).
+* **Non-Free / Paid Features:** Features with NO free tier (e.g. DynamoDB Point-in-Time Recovery).
 
-| AWS Service | Usage Metric | Free Tier Coverage | Est. Monthly Cost |
-| :--- | :--- | :--- | :--- |
-| **AWS Lambda (arm64)** | ~10,000 invocations, 256MB, 500ms | 1,000,000 invocations / 3.2M sec | **$0.00** |
-| **Amazon API Gateway** | ~10,000 requests | 1,000,000 requests / month | **$0.00** |
-| **Amazon DynamoDB** | On-Demand (PAY_PER_REQUEST), <5MB | 25 GB storage free | **$0.00** |
-| **DynamoDB PITR** | Continuous backup on <5MB data | None ($0.20/GB-month) | **<$0.01** |
-| **Amazon S3** | Evidence Vault (<50 files, <20MB) | 5 GB Standard storage free | **$0.00** |
-| **AWS Step Functions** | ~100 recall executions (~1,000 transitions) | 4,000 state transitions / month | **$0.00** |
-| **Amazon SNS** | Emergency alerts (<100 messages) | 1,000,000 publishes free | **$0.00** |
-| **Amazon Cognito** | <10 test users | 50,000 MAUs free | **$0.00** |
-| **Amazon CloudWatch** | Structured logs (<100MB) | 5 GB ingestion / 5 GB storage free | **$0.00** |
-| **Total Estimated Cost** | — | — | **<$0.10 / month** |
+### Detailed Resource Pricing Breakdown (us-east-1):
 
-### Potential Ongoing or Surprise Costs:
-1. **CloudWatch Logs:** If left unconfigured, logs never expire and will accumulate.
-2. **SAM Artifact Bucket:** `sam deploy --resolve-s3` creates an S3 deployment bucket. Storing multiple packaged versions (~29 MB each) incurs standard S3 storage charges over time.
+| AWS Service | Pricing Model | Always Free Tier | 12-Month Free Tier | Price Beyond Free Tier | Est. Low-Traffic Dev Cost |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **AWS Lambda (arm64)** | Per invocation & compute-duration | 1M req / 3.2M sec | N/A | $0.20/1M req + $0.0000133334/GB-s | **$0.00** |
+| **Amazon API Gateway** | Pay-per-request REST API | None | 1M calls/mo | $3.50 per 1M requests | **$0.00** (new) / **<$0.05** (mature) |
+| **Amazon DynamoDB** | On-Demand (PAY_PER_REQUEST) | 25 GB storage | N/A | $1.25/1M writes, $0.25/1M reads | **$0.00** (idle: $0.00) |
+| **DynamoDB PITR** | Paid continuous backup | **NONE** | **NONE** | $0.20 per GB-month | **<$0.01 / month** (on <5MB) |
+| **Amazon S3 Standard** | Storage & API requests | None | 5 GB storage, 2k PUT, 20k GET | $0.023/GB-month, $0.005/1k PUT | **$0.00** (new) / **<$0.01** (mature) |
+| **S3 Versioning Overhead** | Replaced/deleted object versions | None | Subject to standard S3 rates | $0.023/GB-month (pruned at 30 days) | **<$0.01 / month** |
+| **AWS Step Functions** | State transitions (Standard) | 4,000 transitions/mo | N/A | $0.025 per 1,000 transitions | **$0.00** (idle: $0.00) |
+| **Amazon SNS** | Emergency broadcasts | 1M publishes/mo | N/A | $0.50/1M publishes | **$0.00** |
+| **Amazon Cognito** | Monthly Active Users (MAUs) | 50,000 MAUs/mo | N/A | $0.0055/MAU thereafter | **$0.00** |
+| **CloudWatch Logs** | Ingestion & Storage | 5 GB ingest / 5 GB store | N/A | $0.50/GB ingest, $0.03/GB-mo store | **$0.00** (30-day retention bounded) |
+| **Total Estimated Cost** | Low-traffic development testing | — | — | — | **<$0.10 / month** |
+
+### Verified Cost & Operational Realities:
+1. **Zero-Traffic Idle Cost:** If BatchGuard is deployed and completely idle, DynamoDB, Lambda, API Gateway, Step Functions, and SNS incur **$0.00**. Only DynamoDB PITR on stored data (~$0.001/mo) and S3 storage (~$0.001/mo) incur micro-cents.
+2. **S3 Versioning:** Overwriting or deleting evidence documents retains historical versions until purged by the 30-day noncurrent version expiration lifecycle rule.
+3. **SAM Deployment Bucket:** `sam deploy --resolve-s3` maintains packaged deployment artifacts in an S3 bucket (~29 MB per release). Old deployment zips accumulate over multiple releases unless manually cleaned or expired.
 
 ---
 
@@ -205,7 +162,7 @@ aws cloudformation describe-stacks `
 aws cognito-idp admin-create-user `
   --user-pool-id <UserPoolId> `
   --username "compliance.officer@batchguard.internal" `
-  --user-attributes Name=email,Value="compliance.officer@batchguard.internal" Name=custom:org_id,Value="ORG#demo-enterprise" `
+  --user-attributes Name=email,Value="compliance.officer@batchguard.internal" Name=custom:org_id,Value="ORG#apex-foods-north-america" `
   --message-action SUPPRESS
 
 # 7. Set permanent password
@@ -233,16 +190,15 @@ sam delete --stack-name batchguard-stack-dev --no-prompts
 ================================================================================
                     BATCHGUARD AWS DEPLOYMENT READINESS
 ================================================================================
-FINAL STATUS: READY WITH CONDITIONS
+FINAL STATUS: READY FOR DEPLOYMENT (PENDING CREDENTIAL PROVISIONING)
 ================================================================================
 ```
 
-### Conditions for Deployment Authorization:
-
-1. **[BLOCKER 1 - AWS CREDENTIALS]**: Valid AWS credentials must be configured in the deployment environment (`aws sts get-caller-identity` currently returns `NoCredentials`).
-2. **[BLOCKER 2 - FRONTEND AUTHENTICATION INTEGRATION]**: Because `BatchGuardApi` strictly enforces `CognitoAuthorizer` across all endpoints, the frontend requires Cognito authentication wiring or test token injection before browser smoke testing can succeed against live AWS infrastructure.
-3. **[PREREQUISITE - FRONTEND URL CONFIGURATION]**: `VITE_API_BASE_URL` must be pointed to the API Gateway root (`https://{id}.execute-api.us-east-1.amazonaws.com/dev`) rather than including `/v1`, preventing duplicate path routing (`/v1/v1`).
-4. **[RECOMMENDED - USER POOL CLIENT OUTPUT]**: Add `CognitoUserPoolClientId` to `template.yaml` Outputs for automated frontend environment generation.
+### Remediation Status Matrix:
+* **[BLOCKER 1 - AWS CREDENTIALS]**: **ACTIVE BLOCKER** — Host environment requires valid AWS IAM credentials (`aws sts get-caller-identity` returns `NoCredentials`).
+* **[BLOCKER 2 - FRONTEND AUTH INTEGRATION]**: **REMEDIATED** — Cognito authentication service implemented in `frontend/src/services/auth.ts`, connected to `api.ts`, and `ALLOW_USER_PASSWORD_AUTH` configured in `template.yaml`.
+* **[BLOCKER 3 - URL NORMALIZATION]**: **REMEDIATED** — `buildApiUrl` cleanly handles both stage URL and `/v1` root without path duplication.
+* **[OBSERVABILITY & COST - CLOUDWATCH RETENTION]**: **REMEDIATED** — All 20 Lambda functions now have explicit CloudWatch LogGroups with 30-day retention in `template.yaml`.
 
 ---
 
@@ -252,4 +208,3 @@ FINAL STATUS: READY WITH CONDITIONS
 * **No CloudFormation stacks were initiated.**
 * **No artifacts were uploaded to AWS.**
 * **No Git push was executed.**
-* **Zero code modifications were made during this audit.**

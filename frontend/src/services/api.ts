@@ -33,16 +33,60 @@ import {
   DEMO_EVIDENCE,
   DEMO_AUDIT_LOGS,
 } from './mockData';
+import { authService } from './auth';
+
+/**
+ * Normalizes the configured base API URL and endpoint to establish ONE unambiguous API URL contract.
+ *
+ * Rules:
+ * 1. If baseUrl ends in '/v1' and endpoint starts with '/v1', cleanly deduplicates so '/v1/v1' is NEVER formed.
+ * 2. If baseUrl does not end in '/v1' and endpoint does not start with '/v1', cleanly prepends '/v1'.
+ * 3. Supports relative paths or empty baseUrls for dev proxy setups.
+ */
+export function buildApiUrl(baseUrl: string, endpoint: string): string {
+  const base = (baseUrl || '').trim().replace(/\/+$/, '');
+  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+
+  if (!base) {
+    return cleanEndpoint.startsWith('/v1') ? cleanEndpoint : `/v1${cleanEndpoint}`;
+  }
+
+  // If base already contains /v1 at the end
+  if (base.endsWith('/v1')) {
+    if (cleanEndpoint.startsWith('/v1')) {
+      return `${base}${cleanEndpoint.slice(3)}`;
+    }
+    return `${base}${cleanEndpoint}`;
+  }
+
+  // Base is the stage root (e.g. https://.../dev)
+  if (cleanEndpoint.startsWith('/v1')) {
+    return `${base}${cleanEndpoint}`;
+  }
+  return `${base}/v1${cleanEndpoint}`;
+}
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
 const FORCE_MOCK = import.meta.env.VITE_USE_MOCK_DATA === 'true';
 
-async function fetchJson<T>(endpoint: string, options?: RequestInit): Promise<ApiResponse<T>> {
+async function fetchJson<T>(endpoint: string, options?: RequestInit, isRetry = false): Promise<ApiResponse<T>> {
   if (FORCE_MOCK || (!API_BASE_URL && typeof window === 'undefined')) {
     throw new Error('DEMO_MODE_ACTIVE');
   }
 
-  const url = `${API_BASE_URL}/v1${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
+  const url = buildApiUrl(API_BASE_URL, endpoint);
+
+  // Retrieve authenticated token & org identity from authService
+  const token = await authService.getIdToken();
+  const session = authService.getSession();
+
+  const authHeaders: Record<string, string> = {};
+  if (token) {
+    authHeaders['Authorization'] = `Bearer ${token}`;
+  }
+  if (session?.orgId) {
+    authHeaders['X-Organization-Id'] = session.orgId;
+  }
 
   // Abort controller to prevent UI hanging if remote endpoint is unreachable
   const controller = new AbortController();
@@ -50,13 +94,27 @@ async function fetchJson<T>(endpoint: string, options?: RequestInit): Promise<Ap
 
   try {
     const response = await fetch(url, {
+      ...options,
       headers: {
         'Content-Type': 'application/json',
         Accept: 'application/json',
+        ...authHeaders,
+        ...(options?.headers || {}),
       },
       signal: controller.signal,
-      ...options,
     });
+
+    if (response.status === 401 && !isRetry) {
+      // Attempt token refresh once
+      const refreshed = await authService.refreshSession();
+      if (refreshed) {
+        clearTimeout(timeoutId);
+        return fetchJson<T>(endpoint, options, true);
+      } else {
+        authService.handleUnauthorized();
+        throw new Error('Authentication expired. Please log in again.');
+      }
+    }
 
     if (!response.ok) {
       const errorBody = await response.json().catch(() => null);

@@ -626,11 +626,138 @@ Resources:
       ExplicitAuthFlows:
         - ALLOW_USER_SRP_AUTH
         - ALLOW_REFRESH_TOKEN_AUTH
+        - ALLOW_USER_PASSWORD_AUTH
+
+  # ============================================================================
+  # 7. CLOUDWATCH LOG GROUPS (Explicit 30-Day Retention Policy)
+  # ============================================================================
+  BatchFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${BatchFunction}"
+      RetentionInDays: 30
+
+  RecallFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${RecallFunction}"
+      RetentionInDays: 30
+
+  OverviewFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${OverviewFunction}"
+      RetentionInDays: 30
+
+  SupplierFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${SupplierFunction}"
+      RetentionInDays: 30
+
+  DistributionFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${DistributionFunction}"
+      RetentionInDays: 30
+
+  EvidenceFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${EvidenceFunction}"
+      RetentionInDays: 30
+
+  AuditFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${AuditFunction}"
+      RetentionInDays: 30
+
+  ValidateRecallRequestWorkerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${ValidateRecallRequestWorker}"
+      RetentionInDays: 30
+
+  CalculateBlastRadiusWorkerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${CalculateBlastRadiusWorker}"
+      RetentionInDays: 30
+
+  EvaluateRecallRiskWorkerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${EvaluateRecallRiskWorker}"
+      RetentionInDays: 30
+
+  AwaitApprovalWorkerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${AwaitApprovalWorker}"
+      RetentionInDays: 30
+
+  CreateQuarantineTasksWorkerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${CreateQuarantineTasksWorker}"
+      RetentionInDays: 30
+
+  IdentifyCarrierInterceptsWorkerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${IdentifyCarrierInterceptsWorker}"
+      RetentionInDays: 30
+
+  DispatchNotificationsWorkerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${DispatchNotificationsWorker}"
+      RetentionInDays: 30
+
+  TrackAcknowledgementsWorkerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${TrackAcknowledgementsWorker}"
+      RetentionInDays: 30
+
+  RecordAuditEntryWorkerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${RecordAuditEntryWorker}"
+      RetentionInDays: 30
+
+  FinalizeRecallWorkerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${FinalizeRecallWorker}"
+      RetentionInDays: 30
+
+  HandleRejectionWorkerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${HandleRejectionWorker}"
+      RetentionInDays: 30
+
+  HandleTimeoutWorkerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${HandleTimeoutWorker}"
+      RetentionInDays: 30
+
+  HandleFailureWorkerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${HandleFailureWorker}"
+      RetentionInDays: 30
 
 # ============================================================================
 # OUTPUTS
 # ============================================================================
 Outputs:
+  ApiGatewayStageUrl:
+    Description: Base REST API Gateway Stage URL (without /v1)
+    Value: !Sub "https://${BatchGuardApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}"
   ApiGatewayEndpoint:
     Description: Base REST API Gateway endpoint URL
     Value: !Sub "https://${BatchGuardApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}/v1"
