@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+
+<html lang="en"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0" name="viewport"/><meta content="web_dashboard" name="shell-type"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/><link href="https://fonts.googleapis.com" rel="preconnect"/><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><style>@layer base{html,body{margin:0;padding:0;}body{overscroll-behavior:none;}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config={darkMode:"class",theme:{extend:{"colors":{"on-error":"#ffffff","surface-dim":"#cbdbf5","surface-variant":"#d3e4fe","primary-fixed":"#b1f2be","on-primary":"#ffffff","primary-fixed-dim":"#96d5a3","on-tertiary-fixed-variant":"#004b73","inverse-surface":"#213145","tertiary-container":"#004c75","on-surface-variant":"#404941","error-container":"#ffdad6","inverse-on-surface":"#eaf1ff","error":"#ba1a1a","on-tertiary":"#ffffff","on-secondary-container":"#00714d","surface-container-lowest":"#ffffff","on-primary-fixed":"#00210d","outline-variant":"#c0c9be","tertiary":"#003553","secondary-container":"#6cf8bb","secondary-fixed":"#6ffbbe","surface-container-high":"#dce9ff","outline":"#717970","tertiary-fixed-dim":"#93ccff","inverse-primary":"#96d5a3","on-tertiary-fixed":"#001d31","background":"#f8f9ff","on-primary-fixed-variant":"#12512c","on-surface":"#0b1c30","on-secondary-fixed-variant":"#005236","surface-container-highest":"#d3e4fe","surface-container":"#e5eeff","on-error-container":"#93000a","on-secondary":"#ffffff","on-secondary-fixed":"#002113","surface":"#f8f9ff","primary-container":"#14532d","primary":"#003b1b","surface-bright":"#f8f9ff","on-background":"#0b1c30","surface-tint":"#2e6a41","tertiary-fixed":"#cce5ff","on-tertiary-container":"#6cbeff","secondary-fixed-dim":"#4edea3","on-primary-container":"#87c695","surface-container-low":"#eff4ff","secondary":"#006c49"},"borderRadius":{"DEFAULT":"0.125rem","lg":"0.25rem","xl":"0.5rem","full":"0.75rem"},"spacing":{"space-lg":"1.5rem","margin":"2rem","space-md":"1rem","margin-sm":"1rem","space-xl":"2rem","space-xs":"0.25rem","space-sm":"0.5rem","gutter-sm":"1rem","gutter":"1.5rem"},"fontFamily":{"headline-lg-mobile":["Inter"],"headline-sm":["Inter"],"body-lg":["Inter"],"label-sm":["Inter"],"body-sm":["Inter"],"headline-lg":["Inter"],"label-md":["Inter"],"data-mono-sm":["JetBrains Mono"],"body-md":["Inter"],"headline-md":["Inter"],"data-mono":["JetBrains Mono"],"display":["Inter"]},"fontSize":{"headline-lg-mobile":["24px",{"lineHeight":"32px","letterSpacing":"-0.01em","fontWeight":"600"}],"headline-sm":["16px",{"lineHeight":"24px","fontWeight":"600"}],"body-lg":["16px",{"lineHeight":"24px","fontWeight":"400"}],"label-sm":["11px",{"lineHeight":"14px","letterSpacing":"0.04em","fontWeight":"600"}],"body-sm":["12px",{"lineHeight":"18px","fontWeight":"400"}],"headline-lg":["30px",{"lineHeight":"38px","letterSpacing":"-0.015em","fontWeight":"600"}],"label-md":["13px",{"lineHeight":"16px","fontWeight":"500"}],"data-mono-sm":["11px",{"lineHeight":"16px","fontWeight":"400"}],"body-md":["14px",{"lineHeight":"20px","fontWeight":"400"}],"headline-md":["20px",{"lineHeight":"28px","letterSpacing":"-0.01em","fontWeight":"600"}],"data-mono":["13px",{"lineHeight":"18px","fontWeight":"500"}],"display":["36px",{"lineHeight":"44px","letterSpacing":"-0.02em","fontWeight":"700"}]}}}};</script></head><body class="bg-surface font-body-md text-on-surface antialiased"><aside class="fixed left-0 top-0 h-full w-[260px] bg-surface-container-lowest shadow-[0_1px_8px_rgba(0,0,0,0.04)] z-50 flex flex-col justify-between"><div class="flex flex-col flex-1 overflow-y-auto"><div class="p-space-md flex items-center gap-space-sm"><img alt="BatchGuard Brand Shield Logo" class="h-8 w-auto object-contain" src="https://lh3.googleusercontent.com/aida/AEtjO1WK7f9Sz7xXbC7xiVMw4Qoy5A4zBWCByt4c5mLVkZ00JgNX_vPrkJGB8tWLpHD7m3nORkaCm-gYxEhAnhRXcmAiUmB4CB-v33PrXtHGmiMzczQGxZ0in18VM5_gM7VrR1s5jxWw6vvtb6fTdPkUYd2m59lVUN0Xvm3e86_PBn5uMhCXYxJRljUhv9u5EpUWJiBD_ggoqTSK1o-XvNvFxVYqMdt3KxubTyrSMS4mltmlCg"/><div class="flex flex-col"><span class="font-headline-sm text-headline-sm text-primary leading-none">BatchGuard</span><span class="font-data-mono-sm text-data-mono-sm text-outline tracking-wider uppercase mt-space-xs">Traceability &amp; Recall</span></div></div><nav class="flex flex-col gap-space-xs px-space-sm mt-space-sm" data-active-classes="bg-primary-container text-on-primary-container font-headline-sm text-headline-sm"><a aria-current="page" class="flex items-center gap-space-sm px-space-sm py-space-sm rounded-xl transition-colors bg-primary-container text-on-primary-container font-headline-sm text-headline-sm" data-path="overview" href="#"><span class="material-symbols-outlined text-[20px]">dashboard</span><span>Overview</span></a><a class="flex items-center gap-space-sm px-space-sm py-space-sm rounded-xl font-label-md text-label-md text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors" data-path="batch-registry" href="#"><span class="material-symbols-outlined text-[20px]">inventory_2</span><span>Batch Registry</span></a><a class="flex items-center gap-space-sm px-space-sm py-space-sm rounded-xl font-label-md text-label-md text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors" data-path="batch-details" href="#"><span class="material-symbols-outlined text-[20px]">troubleshoot</span><span>Batch Details</span></a><a class="flex items-center gap-space-sm px-space-sm py-space-sm rounded-xl font-label-md text-label-md text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors" data-path="supply-chain" href="#"><span class="material-symbols-outlined text-[20px]">hub</span><span>Supply Chain</span></a><a class="flex items-center justify-between px-space-sm py-space-sm rounded-xl font-label-md text-label-md text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors" data-path="recall-management" href="#"><div class="flex items-center gap-space-sm"><span class="material-symbols-outlined text-[20px]">warning</span><span>Recall Management</span></div><span class="px-space-xs py-0.5 rounded-full bg-error-container text-on-error-container font-label-sm text-label-sm uppercase">2 Active</span></a><a class="flex items-center gap-space-sm px-space-sm py-space-sm rounded-xl font-label-md text-label-md text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors" data-path="suppliers" href="#"><span class="material-symbols-outlined text-[20px]">factory</span><span>Suppliers</span></a><a class="flex items-center gap-space-sm px-space-sm py-space-sm rounded-xl font-label-md text-label-md text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors" data-path="evidence-vault" href="#"><span class="material-symbols-outlined text-[20px]">verified_user</span><span>Evidence Vault</span></a><a class="flex items-center gap-space-sm px-space-sm py-space-sm rounded-xl font-label-md text-label-md text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors" data-path="audit-logs" href="#"><span class="material-symbols-outlined text-[20px]">history</span><span>Audit Logs</span></a><a class="flex items-center gap-space-sm px-space-sm py-space-sm rounded-xl font-label-md text-label-md text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors" data-path="settings" href="#"><span class="material-symbols-outlined text-[20px]">settings</span><span>Settings</span></a></nav></div><div class="p-space-sm flex flex-col gap-space-sm bg-surface-container-low"><div class="flex items-center justify-between px-space-xs py-space-xs bg-surface-container rounded-lg"><div class="flex items-center gap-space-xs"><span class="w-2 h-2 rounded-full bg-secondary animate-pulse"></span><span class="font-label-sm text-label-sm text-on-surface-variant">Mesh: 99.99% Operational</span></div></div><div class="flex items-center gap-space-sm p-space-xs rounded-xl bg-surface-container-lowest"><img alt="Profile" class="w-8 h-8 rounded-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCCHzRhPGLneEOLZ8j8EcuuCC3Ze-LutgBUzKW0GEdBHvMZGFwURyqy2BuU8yUcCbFG8Mpv_9GPI0KC5wkz1shu9S9nAl4k-ybmbgCz87ZXnpkSeM5EcZAafQzmwRKIF7OugdZslE5zMsA1W5_Agg3r79M1v-xQADeQVkw9u0GblURIE2SspFFOtzOZtPRZFS6TsKgpI4gLsuvxbzFl0LlgusSD_iXUtkCSQb6wkGI3"/><div class="flex flex-col min-w-0 flex-1"><span class="font-label-md text-label-md text-on-surface truncate font-semibold">Elena Vance</span><span class="font-body-sm text-body-sm text-outline truncate">Dir. Quality &amp; Traceability</span><span class="font-label-sm text-label-sm text-secondary truncate">Apex Nutrition Global</span></div></div></div></aside><div class="pl-[260px]"><header class="fixed top-0 left-[260px] right-0 z-40 bg-surface/80 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.04)]"><div class="h-16 w-full px-space-lg flex items-center justify-between gap-space-md"><div class="flex items-center gap-space-md"><img alt="BatchGuard Brand Shield Logo" class="h-8 w-auto object-contain" src="https://lh3.googleusercontent.com/aida/AEtjO1WK7f9Sz7xXbC7xiVMw4Qoy5A4zBWCByt4c5mLVkZ00JgNX_vPrkJGB8tWLpHD7m3nORkaCm-gYxEhAnhRXcmAiUmB4CB-v33PrXtHGmiMzczQGxZ0in18VM5_gM7VrR1s5jxWw6vvtb6fTdPkUYd2m59lVUN0Xvm3e86_PBn5uMhCXYxJRljUhv9u5EpUWJiBD_ggoqTSK1o-XvNvFxVYqMdt3KxubTyrSMS4mltmlCg"/><div class="flex items-center gap-space-xs font-label-md text-label-md text-on-surface-variant"><span class="text-outline">BatchGuard</span><span class="material-symbols-outlined text-[16px]">chevron_right</span><span class="text-on-surface font-semibold">Operations</span></div></div><div class="flex-1 max-w-xl"><div class="flex items-center gap-space-sm px-space-sm py-1.5 rounded-lg bg-surface-container-low text-on-surface-variant"><span class="material-symbols-outlined text-[18px] text-outline">search</span><span class="font-body-sm text-body-sm text-outline flex-1">Search batch ID, GTIN, supplier, or recall event...</span><span class="font-data-mono-sm text-data-mono-sm px-space-xs py-0.5 rounded bg-surface-container-high text-on-surface-variant">Cmd+K</span></div></div><div class="flex items-center gap-space-md"><div class="flex items-center gap-space-xs px-space-sm py-1 rounded-full bg-surface-container"><span class="w-2 h-2 rounded-full bg-secondary"></span><span class="font-data-mono-sm text-data-mono-sm text-on-surface font-medium">US-EAST PROD</span></div><button class="relative p-space-xs text-on-surface-variant hover:text-on-surface transition-colors" type="button"><span class="material-symbols-outlined text-[20px]">notifications</span><span class="absolute top-1 right-1 w-4 h-4 rounded-full bg-error text-on-error font-label-sm text-label-sm flex items-center justify-center text-[10px]">3</span></button><button class="p-space-xs text-on-surface-variant hover:text-on-surface transition-colors" type="button"><span class="material-symbols-outlined text-[20px]">help</span></button><div class="flex items-center gap-space-xs pl-space-xs"><img alt="Profile" class="w-8 h-8 rounded-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCCHzRhPGLneEOLZ8j8EcuuCC3Ze-LutgBUzKW0GEdBHvMZGFwURyqy2BuU8yUcCbFG8Mpv_9GPI0KC5wkz1shu9S9nAl4k-ybmbgCz87ZXnpkSeM5EcZAafQzmwRKIF7OugdZslE5zMsA1W5_Agg3r79M1v-xQADeQVkw9u0GblURIE2SspFFOtzOZtPRZFS6TsKgpI4gLsuvxbzFl0LlgusSD_iXUtkCSQb6wkGI3"/><span class="material-symbols-outlined text-[18px] text-on-surface-variant">expand_more</span></div></div></div></header><main class="w-full pt-16 bg-surface"><div class="flex flex-col w-full">
+<div class="w-full px-space-lg py-space-lg flex flex-col gap-space-lg">
+<!-- Page Header & Action Bar -->
+<div class="flex flex-col md:flex-row md:items-center justify-between gap-space-md">
+<div class="flex flex-col gap-space-xs">
+<div class="flex items-center gap-space-xs">
+<span class="w-2.5 h-2.5 rounded-full bg-secondary animate-pulse"></span>
+<span class="font-data-mono-sm text-data-mono-sm uppercase text-secondary font-medium tracking-wider">GS1 &amp; FSMA 204 Continuous Sentinel</span>
+</div>
+<h1 class="font-headline-lg text-headline-lg text-on-surface tracking-tight">Operational Overview</h1>
+<p class="font-body-md text-body-md text-on-surface-variant max-w-2xl">
+          Real-time enterprise food traceability, multi-node custody tracking, and active incident containment posture.
+        </p>
+</div>
+<div class="flex items-center gap-space-sm flex-wrap">
+<button class="inline-flex items-center gap-space-xs h-[38px] px-space-md rounded-xl bg-surface-container-low text-on-surface hover:bg-surface-container transition-colors shadow-sm font-label-md text-label-md" type="button">
+<span class="material-symbols-outlined text-[18px] text-outline">file_download</span>
+<span>Export Safety Audit (PDF/CSV)</span>
+</button>
+<button class="inline-flex items-center gap-space-xs h-[38px] px-space-md rounded-xl bg-primary-container text-on-primary hover:opacity-95 transition-opacity shadow-sm font-label-md text-label-md font-semibold" type="button">
+<span class="material-symbols-outlined text-[18px]">add</span>
+<span>Register New Batch</span>
+</button>
+</div>
+</div>
+<!-- Regulatory Sync Alert Bar -->
+<div class="w-full bg-surface-container-low rounded-xl px-space-md py-space-sm flex items-center justify-between gap-space-md shadow-sm">
+<div class="flex items-center gap-space-sm min-w-0">
+<div class="w-8 h-8 rounded-lg bg-surface-container flex items-center justify-center shrink-0 text-secondary">
+<span class="material-symbols-outlined text-[20px]">verified_user</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface truncate">
+<span class="font-semibold text-secondary">Automated FSMA 204 KDE compliance active</span> across 14 manufacturing nodes. All critical tracking event manifests synced.
+        </p>
+</div>
+<div class="flex items-center gap-space-md shrink-0">
+<span class="font-data-mono-sm text-data-mono-sm text-outline hidden sm:inline">Last verified 4 mins ago</span>
+<button class="text-secondary hover:underline font-label-sm text-label-sm font-semibold flex items-center gap-0.5" type="button">
+<span>Telemetry Ledger</span>
+<span class="material-symbols-outlined text-[14px]">arrow_forward</span>
+</button>
+</div>
+</div>
+<!-- 4 Key Metrics Grid -->
+<div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-space-md">
+<!-- KPI 1 -->
+<div class="bg-surface-container-lowest rounded-xl p-space-lg flex flex-col justify-between shadow-sm relative overflow-hidden group hover:shadow-md transition-shadow">
+<div class="absolute -right-4 -top-4 w-24 h-24 bg-primary-fixed/20 rounded-full blur-xl pointer-events-none"></div>
+<div class="flex items-center justify-between">
+<span class="font-label-md text-label-md text-outline">Total Registered Batches</span>
+<span class="px-space-xs py-0.5 rounded-full bg-surface-container text-secondary font-label-sm text-label-sm flex items-center gap-0.5">
+<span class="material-symbols-outlined text-[13px]">trending_up</span>+12.4%
+          </span>
+</div>
+<div class="my-space-sm flex items-baseline justify-between">
+<span class="font-display text-display text-on-surface font-bold tracking-tight">148,920</span>
+<!-- Inline Sparkline SVG -->
+<svg class="w-20 h-8 text-secondary overflow-visible" fill="none" viewbox="0 0 80 30">
+<path d="M 2 24 Q 18 20 28 14 T 48 18 T 68 8 T 78 4" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"></path>
+<path d="M 2 24 Q 18 20 28 14 T 48 18 T 68 8 T 78 4 L 78 30 L 2 30 Z" fill="currentColor" fill-opacity="0.12"></path>
+</svg>
+</div>
+<div class="flex items-center justify-between text-outline font-data-mono-sm text-data-mono-sm">
+<span>Active lifecycle: 42,180</span>
+<span class="text-on-surface-variant font-medium">99.8% on-spec</span>
+</div>
+</div>
+<!-- KPI 2 -->
+<div class="bg-surface-container-lowest rounded-xl p-space-lg flex flex-col justify-between shadow-sm relative overflow-hidden group hover:shadow-md transition-shadow">
+<div class="flex items-center justify-between">
+<span class="font-label-md text-label-md text-outline">Active Verified Suppliers</span>
+<span class="w-6 h-6 rounded-full bg-surface-container flex items-center justify-center text-secondary">
+<span class="material-symbols-outlined text-[16px]">verified</span>
+</span>
+</div>
+<div class="my-space-sm flex items-baseline justify-between">
+<span class="font-display text-display text-on-surface font-bold tracking-tight">1,248</span>
+<span class="font-headline-sm text-headline-sm text-secondary font-semibold">99.2%</span>
+</div>
+<div class="flex items-center justify-between font-data-mono-sm text-data-mono-sm">
+<span class="text-outline">14 undergoing audit</span>
+<span class="text-secondary font-medium">Global Tier 1</span>
+</div>
+</div>
+<!-- KPI 3 -->
+<div class="bg-surface-container-lowest rounded-xl p-space-lg flex flex-col justify-between shadow-sm relative overflow-hidden group hover:shadow-md transition-shadow">
+<div class="flex items-center justify-between">
+<span class="font-label-md text-label-md text-outline">Monitored Distribution Nodes</span>
+<span class="w-6 h-6 rounded-full bg-surface-container flex items-center justify-center text-tertiary">
+<span class="material-symbols-outlined text-[16px]">hub</span>
+</span>
+</div>
+<div class="my-space-sm flex items-baseline justify-between">
+<span class="font-display text-display text-on-surface font-bold tracking-tight">4,821</span>
+<span class="font-label-sm text-label-sm uppercase tracking-wider text-outline">18 Countries</span>
+</div>
+<div class="flex items-center justify-between text-outline font-data-mono-sm text-data-mono-sm">
+<span>Cold chain &amp; processing</span>
+<span class="text-on-surface-variant font-medium">0 offline hubs</span>
+</div>
+</div>
+<!-- KPI 4 (Incident Focus) -->
+<div class="bg-surface-container-lowest rounded-xl p-space-lg flex flex-col justify-between shadow-sm relative overflow-hidden group hover:shadow-md transition-shadow">
+<div class="absolute inset-x-0 top-0 h-1 bg-error"></div>
+<div class="flex items-center justify-between">
+<span class="font-label-md text-label-md text-outline">Open Recall Incidents</span>
+<span class="px-space-xs py-0.5 rounded-full bg-error-container text-on-error-container font-label-sm text-label-sm uppercase font-semibold flex items-center gap-1">
+<span class="w-2 h-2 rounded-full bg-error animate-ping"></span>
+<span>Critical</span>
+</span>
+</div>
+<div class="my-space-sm flex items-baseline justify-between">
+<span class="font-display text-display text-error font-bold tracking-tight">2 Active</span>
+<span class="font-data-mono-sm text-data-mono-sm text-on-surface-variant font-medium">1 Cl-I / 1 Cl-II</span>
+</div>
+<div class="flex items-center justify-between text-outline font-data-mono-sm text-data-mono-sm">
+<span>Avg containment: <strong class="text-on-surface">42m</strong></span>
+<span class="text-error font-semibold">Immediate Action</span>
+</div>
+</div>
+</div>
+<!-- Main Content Grid -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-space-lg items-start">
+<!-- LEFT COLUMN: 65% (8/12 cols) -->
+<div class="lg:col-span-8 flex flex-col gap-space-lg">
+<!-- CARD 1: Supply Chain Ingestion & Velocity Chart -->
+<div class="bg-surface-container-lowest rounded-xl p-space-lg shadow-sm flex flex-col gap-space-md">
+<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-space-sm">
+<div class="flex flex-col">
+<span class="font-headline-sm text-headline-sm text-on-surface">Supply Chain Ingestion &amp; Custody Velocity</span>
+<span class="font-body-sm text-body-sm text-outline">Real-time CTE throughput across Harvest, Transformation, Cooling &amp; Logistics nodes</span>
+</div>
+<div class="inline-flex p-0.5 rounded-lg bg-surface-container-low text-on-surface-variant font-label-sm text-label-sm self-start sm:self-auto">
+<button class="px-space-sm py-1 rounded bg-surface-container-lowest text-on-surface font-semibold shadow-xs" type="button">24h</button>
+<button class="px-space-sm py-1 rounded hover:text-on-surface transition-colors" type="button">7d</button>
+<button class="px-space-sm py-1 rounded hover:text-on-surface transition-colors" type="button">30d</button>
+<button class="px-space-sm py-1 rounded hover:text-on-surface transition-colors" type="button">Quarter</button>
+</div>
+</div>
+<!-- Chart Area -->
+<div class="relative w-full h-64 bg-surface-container-low rounded-xl p-space-md flex flex-col justify-between overflow-hidden">
+<!-- Grid Lines -->
+<div class="absolute inset-0 px-space-md py-space-sm flex flex-col justify-between pointer-events-none opacity-40">
+<div class="w-full h-px bg-outline-variant"></div>
+<div class="w-full h-px bg-outline-variant"></div>
+<div class="w-full h-px bg-outline-variant"></div>
+<div class="w-full h-px bg-outline-variant"></div>
+<div class="w-full h-px bg-outline-variant"></div>
+</div>
+<!-- Custom Interactive Visual Vector -->
+<div class="relative w-full h-full flex items-end justify-between z-10 pt-4">
+<!-- Inline Data visualization with SVG Area & Bars -->
+<svg class="absolute inset-0 w-full h-full overflow-visible" preserveaspectratio="none" viewbox="0 0 700 200">
+<defs>
+<lineargradient id="gradient-velocity" x1="0" x2="0" y1="0" y2="1">
+<stop offset="0%" stop-color="#006c49" stop-opacity="0.3"></stop>
+<stop offset="100%" stop-color="#006c49" stop-opacity="0.0"></stop>
+</lineargradient>
+</defs>
+<!-- Shaded Area curve -->
+<path d="M 0 170 Q 70 120 140 140 T 280 80 T 420 110 T 560 40 T 700 65 L 700 200 L 0 200 Z" fill="url(#gradient-velocity)"></path>
+<!-- Main Velocity path -->
+<path d="M 0 170 Q 70 120 140 140 T 280 80 T 420 110 T 560 40 T 700 65" fill="none" stroke="#006c49" stroke-linecap="round" stroke-width="3"></path>
+<!-- Incident indicator at Node 560 -->
+<circle class="animate-ping" cx="560" cy="40" fill="#ba1a1a" opacity="0.6" r="6"></circle>
+<circle cx="560" cy="40" fill="#ba1a1a" r="5"></circle>
+<!-- Warning marker at Node 280 -->
+<circle cx="280" cy="80" fill="#003553" r="4"></circle>
+</svg>
+<!-- Node markers labels -->
+<div class="w-full flex justify-between font-data-mono-sm text-data-mono-sm text-outline z-20 pt-2 pb-1">
+<span>00:00 (Harvest)</span>
+<span>04:00 (Pre-Cool)</span>
+<span>08:00 (Transformation)</span>
+<span>12:00 (Packing)</span>
+<span>16:00 (Cold Shipping)</span>
+<span>20:00 (DC Receiving)</span>
+</div>
+</div>
+<!-- Floating Data Callout Tag -->
+<div class="absolute top-6 left-1/2 transform -translate-x-1/2 bg-surface-container-lowest/90 backdrop-blur px-space-sm py-1 rounded-lg shadow-sm flex items-center gap-space-sm">
+<span class="w-2 h-2 rounded-full bg-secondary"></span>
+<span class="font-data-mono-sm text-data-mono-sm text-on-surface">Peak Velocity: <strong class="font-semibold text-secondary">3,420 KDE/hr</strong></span>
+<span class="text-outline">|</span>
+<span class="font-data-mono-sm text-data-mono-sm text-outline">Mean Latency: 1.4s</span>
+</div>
+</div>
+<!-- Chart Legend -->
+<div class="flex flex-wrap items-center justify-between gap-space-sm pt-space-xs font-label-md text-label-md">
+<div class="flex items-center gap-space-md flex-wrap">
+<div class="flex items-center gap-space-xs">
+<span class="w-3 h-3 rounded-full bg-secondary"></span>
+<span class="text-on-surface-variant">Optimal Custody (98.4%)</span>
+</div>
+<div class="flex items-center gap-space-xs">
+<span class="w-3 h-3 rounded-full bg-tertiary"></span>
+<span class="text-on-surface-variant">Warning Variance (1.4%)</span>
+</div>
+<div class="flex items-center gap-space-xs">
+<span class="w-3 h-3 rounded-full bg-error"></span>
+<span class="text-on-surface-variant">Incident Quarantined (0.2%)</span>
+</div>
+</div>
+<span class="font-data-mono-sm text-data-mono-sm text-outline">Telemetry Nodes: 4,821 Live</span>
+</div>
+</div>
+<!-- CARD 2: Recent Batch Registrations Table -->
+<div class="bg-surface-container-lowest rounded-xl shadow-sm flex flex-col overflow-hidden">
+<div class="p-space-lg flex flex-col sm:flex-row sm:items-center justify-between gap-space-sm">
+<div>
+<h2 class="font-headline-sm text-headline-sm text-on-surface">Recent Batch Registrations</h2>
+<p class="font-body-sm text-body-sm text-outline">Continuous FSMA 204 ledger ingestion stream and sensory verification</p>
+</div>
+<div class="flex items-center gap-space-xs">
+<button class="p-1.5 rounded-lg bg-surface-container-low text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors" type="button">
+<span class="material-symbols-outlined text-[18px]">filter_list</span>
+</button>
+<button class="p-1.5 rounded-lg bg-surface-container-low text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors" type="button">
+<span class="material-symbols-outlined text-[18px]">view_column</span>
+</button>
+</div>
+</div>
+<!-- High-density Responsive Table -->
+<div class="w-full overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container-low text-outline font-label-sm text-label-sm uppercase tracking-wider">
+<th class="py-space-sm px-space-md font-semibold">Batch ID / GTIN</th>
+<th class="py-space-sm px-space-md font-semibold">Product Description</th>
+<th class="py-space-sm px-space-md font-semibold">Facility Node</th>
+<th class="py-space-sm px-space-md font-semibold">Registered</th>
+<th class="py-space-sm px-space-md font-semibold">Sensor Telemetry</th>
+<th class="py-space-sm px-space-md font-semibold">Status</th>
+<th class="py-space-sm px-space-md text-right font-semibold">Action</th>
+</tr>
+</thead>
+<tbody class="font-body-md text-body-md divide-y-0 text-on-surface">
+<!-- Row 1 -->
+<tr class="hover:bg-surface-container-low transition-colors group">
+<td class="py-space-sm px-space-md">
+<a class="font-data-mono text-data-mono text-secondary hover:underline font-semibold flex items-center gap-1" href="#">
+<span>BG-2024-8891-ORG</span>
+<span class="material-symbols-outlined text-[14px]">open_in_new</span>
+</a>
+<span class="font-data-mono-sm text-data-mono-sm text-outline block">GTIN-14: 10842231998124</span>
+</td>
+<td class="py-space-sm px-space-md">
+<span class="font-semibold block truncate max-w-[180px]">Organic Baby Spinach 16oz</span>
+<span class="font-body-sm text-body-sm text-outline">Category: Fresh Leafy Greens</span>
+</td>
+<td class="py-space-sm px-space-md">
+<span class="font-body-md text-body-md block">Salinas Valley Plant #4</span>
+<span class="font-data-mono-sm text-data-mono-sm text-outline">CA-ZONE-09</span>
+</td>
+<td class="py-space-sm px-space-md font-data-mono-sm text-data-mono-sm text-outline">
+<span>14 mins ago</span>
+</td>
+<td class="py-space-sm px-space-md">
+<div class="inline-flex items-center gap-1 px-space-xs py-0.5 rounded bg-surface-container text-secondary font-data-mono-sm text-data-mono-sm font-semibold">
+<span class="material-symbols-outlined text-[13px]">thermostat</span>
+<span>3.4°C Optimal</span>
+</div>
+</td>
+<td class="py-space-sm px-space-md">
+<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-secondary-fixed text-on-secondary-fixed-variant font-label-sm text-label-sm uppercase font-semibold">
+<span class="w-1.5 h-1.5 rounded-full bg-secondary"></span>
+<span>Verified Compliant</span>
+</span>
+</td>
+<td class="py-space-sm px-space-md text-right">
+<button class="p-1 rounded text-outline hover:text-on-surface hover:bg-surface-container transition-colors" type="button">
+<span class="material-symbols-outlined text-[18px]">more_horiz</span>
+</button>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr class="hover:bg-surface-container-low transition-colors group">
+<td class="py-space-sm px-space-md">
+<a class="font-data-mono text-data-mono text-secondary hover:underline font-semibold flex items-center gap-1" href="#">
+<span>BG-2024-8890-DAI</span>
+<span class="material-symbols-outlined text-[14px]">open_in_new</span>
+</a>
+<span class="font-data-mono-sm text-data-mono-sm text-outline block">GTIN-14: 10842231998551</span>
+</td>
+<td class="py-space-sm px-space-md">
+<span class="font-semibold block truncate max-w-[180px]">Whole Milk Organic 1Gal</span>
+<span class="font-body-sm text-body-sm text-outline">Category: Dairy / Pasteurization</span>
+</td>
+<td class="py-space-sm px-space-md">
+<span class="font-body-md text-body-md block">GreenPastures Facility 2</span>
+<span class="font-data-mono-sm text-data-mono-sm text-outline">WI-PLANT-12</span>
+</td>
+<td class="py-space-sm px-space-md font-data-mono-sm text-data-mono-sm text-outline">
+<span>42 mins ago</span>
+</td>
+<td class="py-space-sm px-space-md">
+<div class="inline-flex items-center gap-1 px-space-xs py-0.5 rounded bg-surface-container text-on-surface-variant font-data-mono-sm text-data-mono-sm">
+<span class="material-symbols-outlined text-[13px]">local_shipping</span>
+<span>In Transit (2.8°C)</span>
+</div>
+</td>
+<td class="py-space-sm px-space-md">
+<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-surface-container text-tertiary font-label-sm text-label-sm uppercase font-semibold">
+<span class="w-1.5 h-1.5 rounded-full bg-tertiary"></span>
+<span>In Transit</span>
+</span>
+</td>
+<td class="py-space-sm px-space-md text-right">
+<button class="p-1 rounded text-outline hover:text-on-surface hover:bg-surface-container transition-colors" type="button">
+<span class="material-symbols-outlined text-[18px]">more_horiz</span>
+</button>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr class="hover:bg-surface-container-low transition-colors group">
+<td class="py-space-sm px-space-md">
+<a class="font-data-mono text-data-mono text-secondary hover:underline font-semibold flex items-center gap-1" href="#">
+<span>BG-2024-8889-PRT</span>
+<span class="material-symbols-outlined text-[14px]">open_in_new</span>
+</a>
+<span class="font-data-mono-sm text-data-mono-sm text-outline block">GTIN-14: 10842231997230</span>
+</td>
+<td class="py-space-sm px-space-md">
+<span class="font-semibold block truncate max-w-[180px]">Cage-Free Egg Whites 32oz</span>
+<span class="font-body-sm text-body-sm text-outline">Category: Liquid Egg Poultry</span>
+</td>
+<td class="py-space-sm px-space-md">
+<span class="font-body-md text-body-md block">Midwest BioProtein Hub</span>
+<span class="font-data-mono-sm text-data-mono-sm text-outline">IA-CENTRAL-01</span>
+</td>
+<td class="py-space-sm px-space-md font-data-mono-sm text-data-mono-sm text-outline">
+<span>1 hr ago</span>
+</td>
+<td class="py-space-sm px-space-md">
+<div class="inline-flex items-center gap-1 px-space-xs py-0.5 rounded bg-surface-container text-on-surface-variant font-data-mono-sm text-data-mono-sm">
+<span class="material-symbols-outlined text-[13px]">science</span>
+<span>Lab Testing Queue</span>
+</div>
+</td>
+<td class="py-space-sm px-space-md">
+<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-surface-container-high text-on-surface-variant font-label-sm text-label-sm uppercase font-semibold">
+<span class="w-1.5 h-1.5 rounded-full bg-outline"></span>
+<span>Pending Lab KDE</span>
+</span>
+</td>
+<td class="py-space-sm px-space-md text-right">
+<button class="p-1 rounded text-outline hover:text-on-surface hover:bg-surface-container transition-colors" type="button">
+<span class="material-symbols-outlined text-[18px]">more_horiz</span>
+</button>
+</td>
+</tr>
+<!-- Row 4 -->
+<tr class="hover:bg-surface-container-low transition-colors group">
+<td class="py-space-sm px-space-md">
+<a class="font-data-mono text-data-mono text-secondary hover:underline font-semibold flex items-center gap-1" href="#">
+<span>BG-2024-8888-BAK</span>
+<span class="material-symbols-outlined text-[14px]">open_in_new</span>
+</a>
+<span class="font-data-mono-sm text-data-mono-sm text-outline block">GTIN-14: 10842231991809</span>
+</td>
+<td class="py-space-sm px-space-md">
+<span class="font-semibold block truncate max-w-[180px]">Artisan Sourdough Batard</span>
+<span class="font-body-sm text-body-sm text-outline">Category: Bakery / Dry Ambient</span>
+</td>
+<td class="py-space-sm px-space-md">
+<span class="font-body-md text-body-md block">Oregon Hearth Mill #3</span>
+<span class="font-data-mono-sm text-data-mono-sm text-outline">OR-PORTLAND-04</span>
+</td>
+<td class="py-space-sm px-space-md font-data-mono-sm text-data-mono-sm text-outline">
+<span>2 hrs ago</span>
+</td>
+<td class="py-space-sm px-space-md">
+<div class="inline-flex items-center gap-1 px-space-xs py-0.5 rounded bg-surface-container text-secondary font-data-mono-sm text-data-mono-sm font-semibold">
+<span class="material-symbols-outlined text-[13px]">humidity_percentage</span>
+<span>52% HR Nominal</span>
+</div>
+</td>
+<td class="py-space-sm px-space-md">
+<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-secondary-fixed text-on-secondary-fixed-variant font-label-sm text-label-sm uppercase font-semibold">
+<span class="w-1.5 h-1.5 rounded-full bg-secondary"></span>
+<span>Verified Compliant</span>
+</span>
+</td>
+<td class="py-space-sm px-space-md text-right">
+<button class="p-1 rounded text-outline hover:text-on-surface hover:bg-surface-container transition-colors" type="button">
+<span class="material-symbols-outlined text-[18px]">more_horiz</span>
+</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Table Footer Pagination -->
+<div class="p-space-md bg-surface-container-low flex flex-col sm:flex-row items-center justify-between gap-space-sm text-outline font-data-mono-sm text-data-mono-sm">
+<span>Showing <strong class="text-on-surface">1 - 4</strong> of 148,920 registered batches</span>
+<div class="flex items-center gap-space-xs">
+<button class="px-space-sm py-1 rounded bg-surface-container-lowest text-on-surface-variant hover:text-on-surface shadow-xs" type="button">Prev</button>
+<span class="px-space-xs text-on-surface font-semibold">1</span>
+<span>/ 37,230</span>
+<button class="px-space-sm py-1 rounded bg-surface-container-lowest text-on-surface-variant hover:text-on-surface shadow-xs" type="button">Next</button>
+</div>
+</div>
+</div>
+</div>
+<!-- RIGHT COLUMN: 35% (4/12 cols) -->
+<div class="lg:col-span-4 flex flex-col gap-space-lg">
+<!-- CARD 3: Active Recall & Quarantine Alerts (High Attention) -->
+<div class="bg-surface-container-lowest rounded-xl p-space-lg shadow-md flex flex-col gap-space-md relative overflow-hidden">
+<div class="absolute inset-y-0 left-0 w-1.5 bg-error"></div>
+<div class="flex items-center justify-between pl-1">
+<div class="flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-error text-[22px]">emergency</span>
+<h3 class="font-headline-sm text-headline-sm text-on-surface">Active Recall &amp; Containment</h3>
+</div>
+<span class="px-space-xs py-0.5 rounded-full bg-error-container text-on-error-container font-label-sm text-label-sm uppercase font-bold">
+              2 Events
+            </span>
+</div>
+<p class="font-body-sm text-body-sm text-outline pl-1">
+            Sub-hour containment protocol triggered. Multi-node supply halts in effect.
+          </p>
+<!-- Alert Item 1: Severe Class I Recall -->
+<div class="bg-surface-container-low rounded-xl p-space-md flex flex-col gap-space-sm">
+<div class="flex items-start justify-between gap-space-xs">
+<div>
+<span class="font-data-mono-sm text-data-mono-sm uppercase text-error font-semibold block">#REC-2024-009 • FDA Class I</span>
+<span class="font-headline-sm text-headline-sm text-on-surface font-semibold">Undeclared Allergen (Soy Protein)</span>
+</div>
+<span class="w-2.5 h-2.5 rounded-full bg-error animate-ping shrink-0 mt-1"></span>
+</div>
+<div class="flex flex-col gap-1 font-data-mono-sm text-data-mono-sm text-outline">
+<div class="flex justify-between">
+<span>Lot: <strong class="text-on-surface">BG-2024-7712-B</strong></span>
+<span>Affected: <strong class="text-on-surface">4,200 Units</strong></span>
+</div>
+<span>Scope: 42 Regional Distributor Hubs</span>
+</div>
+<!-- Containment Progress Bar -->
+<div class="flex flex-col gap-1 pt-1">
+<div class="flex justify-between font-label-sm text-label-sm">
+<span class="text-on-surface-variant font-medium">Containment &amp; Recovery</span>
+<span class="text-error font-bold">88% Quarantined</span>
+</div>
+<div class="w-full h-2 rounded-full bg-surface-container overflow-hidden">
+<div class="h-full bg-error rounded-full transition-all duration-500" style="width: 88%"></div>
+</div>
+</div>
+<div class="flex items-center justify-between pt-1">
+<span class="font-data-mono-sm text-data-mono-sm text-outline">Hold ID: #HLD-99182</span>
+<a class="inline-flex items-center gap-1 font-label-md text-label-md text-error hover:underline font-semibold" href="#">
+<span>Manage Recall</span>
+<span class="material-symbols-outlined text-[16px]">arrow_forward</span>
+</a>
+</div>
+</div>
+<!-- Alert Item 2: Temperature Excursion -->
+<div class="bg-surface-container-low rounded-xl p-space-md flex flex-col gap-space-sm">
+<div class="flex items-start justify-between gap-space-xs">
+<div>
+<span class="font-data-mono-sm text-data-mono-sm uppercase text-tertiary font-semibold block">#WRN-2024-114 • Cold Chain Break</span>
+<span class="font-headline-sm text-headline-sm text-on-surface font-semibold">Excursion Alert (&gt;6.5°C)</span>
+</div>
+<span class="w-2.5 h-2.5 rounded-full bg-tertiary shrink-0 mt-1"></span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant">
+              Artisan Greek Yogurt (Batch #BG-2024-9104-D) at Cold Chain Hub Atlanta. Telemetry exceeded safe threshold for 38 mins.
+            </p>
+<div class="flex items-center justify-between pt-1">
+<span class="px-space-xs py-0.5 rounded bg-surface-container text-tertiary font-label-sm text-label-sm font-semibold">Auto-Hold Placed</span>
+<a class="inline-flex items-center gap-1 font-label-md text-label-md text-tertiary hover:underline font-semibold" href="#">
+<span>Inspect Telemetry</span>
+<span class="material-symbols-outlined text-[16px]">arrow_forward</span>
+</a>
+</div>
+</div>
+</div>
+<!-- CARD 4: FSMA 204 CTE Breakdown -->
+<div class="bg-surface-container-lowest rounded-xl p-space-lg shadow-sm flex flex-col gap-space-md">
+<div class="flex items-center justify-between">
+<div>
+<h3 class="font-headline-sm text-headline-sm text-on-surface">FSMA 204 CTE Distribution</h3>
+<p class="font-body-sm text-body-sm text-outline">Key Data Elements captured by phase</p>
+</div>
+<span class="material-symbols-outlined text-outline text-[20px]">donut_large</span>
+</div>
+<!-- Segmented Progress Bar -->
+<div class="flex flex-col gap-space-sm">
+<div class="w-full h-3 rounded-full bg-surface-container flex overflow-hidden">
+<div class="h-full bg-primary-container" style="width: 34%" title="Transformation: 34%"></div>
+<div class="h-full bg-secondary" style="width: 28%" title="Shipping: 28%"></div>
+<div class="h-full bg-tertiary-container" style="width: 22%" title="Receiving: 22%"></div>
+<div class="h-full bg-outline-variant" style="width: 16%" title="Harvesting: 16%"></div>
+</div>
+<!-- Legend Items with Counts -->
+<div class="grid grid-cols-2 gap-space-sm pt-space-xs">
+<div class="flex flex-col p-space-xs rounded-lg bg-surface-container-low">
+<div class="flex items-center gap-1.5">
+<span class="w-2.5 h-2.5 rounded-full bg-primary-container"></span>
+<span class="font-label-md text-label-md text-on-surface font-semibold">Transformation</span>
+</div>
+<span class="font-data-mono-sm text-data-mono-sm text-outline pl-4">34% (50.6k events)</span>
+</div>
+<div class="flex flex-col p-space-xs rounded-lg bg-surface-container-low">
+<div class="flex items-center gap-1.5">
+<span class="w-2.5 h-2.5 rounded-full bg-secondary"></span>
+<span class="font-label-md text-label-md text-on-surface font-semibold">Shipping</span>
+</div>
+<span class="font-data-mono-sm text-data-mono-sm text-outline pl-4">28% (41.7k events)</span>
+</div>
+<div class="flex flex-col p-space-xs rounded-lg bg-surface-container-low">
+<div class="flex items-center gap-1.5">
+<span class="w-2.5 h-2.5 rounded-full bg-tertiary-container"></span>
+<span class="font-label-md text-label-md text-on-surface font-semibold">Receiving</span>
+</div>
+<span class="font-data-mono-sm text-data-mono-sm text-outline pl-4">22% (32.8k events)</span>
+</div>
+<div class="flex flex-col p-space-xs rounded-lg bg-surface-container-low">
+<div class="flex items-center gap-1.5">
+<span class="w-2.5 h-2.5 rounded-full bg-outline-variant"></span>
+<span class="font-label-md text-label-md text-on-surface font-semibold">Harvesting</span>
+</div>
+<span class="font-data-mono-sm text-data-mono-sm text-outline pl-4">16% (23.8k events)</span>
+</div>
+</div>
+</div>
+</div>
+<!-- CARD 5: Supplier Verification Health -->
+<div class="bg-surface-container-lowest rounded-xl p-space-lg shadow-sm flex flex-col justify-between gap-space-md">
+<div class="flex items-center justify-between">
+<div>
+<h3 class="font-headline-sm text-headline-sm text-on-surface">Supplier Verification Health</h3>
+<p class="font-body-sm text-body-sm text-outline">GFSI / SQF / BRCGS certification status</p>
+</div>
+<div class="w-8 h-8 rounded-lg bg-surface-container-low flex items-center justify-center text-secondary">
+<span class="material-symbols-outlined text-[20px]">fact_check</span>
+</div>
+</div>
+<div class="flex items-center gap-space-md p-space-sm rounded-xl bg-surface-container-low">
+<div class="w-12 h-12 rounded-xl bg-surface-container flex flex-col items-center justify-center shrink-0">
+<span class="font-headline-sm text-headline-sm text-secondary font-bold">94%</span>
+</div>
+<div class="flex flex-col min-w-0">
+<span class="font-label-md text-label-md text-on-surface font-semibold">Tier 1 Suppliers Fully Validated</span>
+<span class="font-body-sm text-body-sm text-outline">4 credentials expiring in the next 15 days</span>
+</div>
+</div>
+<div class="flex items-center justify-between pt-space-xs">
+<span class="font-data-mono-sm text-data-mono-sm text-outline">Vault: 1,248 Records</span>
+<button class="inline-flex items-center gap-1 px-space-md py-1.5 rounded-xl bg-surface-container text-on-surface hover:bg-surface-container-high transition-colors font-label-md text-label-md font-semibold" type="button">
+<span class="material-symbols-outlined text-[16px]">folder_open</span>
+<span>Review Audit Vault</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div></main></div></body></html>

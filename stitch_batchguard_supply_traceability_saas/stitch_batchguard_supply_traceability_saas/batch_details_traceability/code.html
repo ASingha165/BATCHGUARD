@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+
+<html lang="en"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0" name="viewport"/><meta content="web_dashboard" name="shell-type"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/><link href="https://fonts.googleapis.com" rel="preconnect"/><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><style>@layer base{html,body{margin:0;padding:0;}body{overscroll-behavior:none;}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config={darkMode:"class",theme:{extend:{"colors":{"on-error":"#ffffff","surface-dim":"#cbdbf5","surface-variant":"#d3e4fe","primary-fixed":"#b1f2be","on-primary":"#ffffff","primary-fixed-dim":"#96d5a3","on-tertiary-fixed-variant":"#004b73","inverse-surface":"#213145","tertiary-container":"#004c75","on-surface-variant":"#404941","error-container":"#ffdad6","inverse-on-surface":"#eaf1ff","error":"#ba1a1a","on-tertiary":"#ffffff","on-secondary-container":"#00714d","surface-container-lowest":"#ffffff","on-primary-fixed":"#00210d","outline-variant":"#c0c9be","tertiary":"#003553","secondary-container":"#6cf8bb","secondary-fixed":"#6ffbbe","surface-container-high":"#dce9ff","outline":"#717970","tertiary-fixed-dim":"#93ccff","inverse-primary":"#96d5a3","on-tertiary-fixed":"#001d31","background":"#f8f9ff","on-primary-fixed-variant":"#12512c","on-surface":"#0b1c30","on-secondary-fixed-variant":"#005236","surface-container-highest":"#d3e4fe","surface-container":"#e5eeff","on-error-container":"#93000a","on-secondary":"#ffffff","on-secondary-fixed":"#002113","surface":"#f8f9ff","primary-container":"#14532d","primary":"#003b1b","surface-bright":"#f8f9ff","on-background":"#0b1c30","surface-tint":"#2e6a41","tertiary-fixed":"#cce5ff","on-tertiary-container":"#6cbeff","secondary-fixed-dim":"#4edea3","on-primary-container":"#87c695","surface-container-low":"#eff4ff","secondary":"#006c49"},"borderRadius":{"DEFAULT":"0.125rem","lg":"0.25rem","xl":"0.5rem","full":"0.75rem"},"spacing":{"space-lg":"1.5rem","margin":"2rem","space-md":"1rem","margin-sm":"1rem","space-xl":"2rem","space-xs":"0.25rem","space-sm":"0.5rem","gutter-sm":"1rem","gutter":"1.5rem"},"fontFamily":{"headline-lg-mobile":["Inter"],"headline-sm":["Inter"],"body-lg":["Inter"],"label-sm":["Inter"],"body-sm":["Inter"],"headline-lg":["Inter"],"label-md":["Inter"],"data-mono-sm":["JetBrains Mono"],"body-md":["Inter"],"headline-md":["Inter"],"data-mono":["JetBrains Mono"],"display":["Inter"]},"fontSize":{"headline-lg-mobile":["24px",{"lineHeight":"32px","letterSpacing":"-0.01em","fontWeight":"600"}],"headline-sm":["16px",{"lineHeight":"24px","fontWeight":"600"}],"body-lg":["16px",{"lineHeight":"24px","fontWeight":"400"}],"label-sm":["11px",{"lineHeight":"14px","letterSpacing":"0.04em","fontWeight":"600"}],"body-sm":["12px",{"lineHeight":"18px","fontWeight":"400"}],"headline-lg":["30px",{"lineHeight":"38px","letterSpacing":"-0.015em","fontWeight":"600"}],"label-md":["13px",{"lineHeight":"16px","fontWeight":"500"}],"data-mono-sm":["11px",{"lineHeight":"16px","fontWeight":"400"}],"body-md":["14px",{"lineHeight":"20px","fontWeight":"400"}],"headline-md":["20px",{"lineHeight":"28px","letterSpacing":"-0.01em","fontWeight":"600"}],"data-mono":["13px",{"lineHeight":"18px","fontWeight":"500"}],"display":["36px",{"lineHeight":"44px","letterSpacing":"-0.02em","fontWeight":"700"}]}}}};</script></head><body class="bg-surface font-body-md text-on-surface antialiased"><aside class="fixed left-0 top-0 h-full w-[260px] bg-surface-container-lowest shadow-[0_1px_8px_rgba(0,0,0,0.04)] z-50 flex flex-col justify-between"><div class="flex flex-col flex-1 overflow-y-auto"><div class="p-space-md flex items-center gap-space-sm"><img alt="BatchGuard Brand Shield Logo" class="h-8 w-auto object-contain" src="https://lh3.googleusercontent.com/aida/AEtjO1WK7f9Sz7xXbC7xiVMw4Qoy5A4zBWCByt4c5mLVkZ00JgNX_vPrkJGB8tWLpHD7m3nORkaCm-gYxEhAnhRXcmAiUmB4CB-v33PrXtHGmiMzczQGxZ0in18VM5_gM7VrR1s5jxWw6vvtb6fTdPkUYd2m59lVUN0Xvm3e86_PBn5uMhCXYxJRljUhv9u5EpUWJiBD_ggoqTSK1o-XvNvFxVYqMdt3KxubTyrSMS4mltmlCg"/><div class="flex flex-col"><span class="font-headline-sm text-headline-sm text-primary leading-none">BatchGuard</span><span class="font-data-mono-sm text-data-mono-sm text-outline tracking-wider uppercase mt-space-xs">Traceability &amp; Recall</span></div></div><nav class="flex flex-col gap-space-xs px-space-sm mt-space-sm" data-active-classes="bg-primary-container text-on-primary-container font-headline-sm text-headline-sm"><a class="flex items-center gap-space-sm px-space-sm py-space-sm rounded-xl font-label-md text-label-md text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors" data-path="overview" href="#"><span class="material-symbols-outlined text-[20px]">dashboard</span><span>Overview</span></a><a class="flex items-center gap-space-sm px-space-sm py-space-sm rounded-xl font-label-md text-label-md text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors" data-path="batch-registry" href="#"><span class="material-symbols-outlined text-[20px]">inventory_2</span><span>Batch Registry</span></a><a aria-current="page" class="flex items-center gap-space-sm px-space-sm py-space-sm rounded-xl transition-colors bg-primary-container text-on-primary-container font-headline-sm text-headline-sm" data-path="batch-details" href="#"><span class="material-symbols-outlined text-[20px]">troubleshoot</span><span>Batch Details</span></a><a class="flex items-center gap-space-sm px-space-sm py-space-sm rounded-xl font-label-md text-label-md text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors" data-path="supply-chain" href="#"><span class="material-symbols-outlined text-[20px]">hub</span><span>Supply Chain</span></a><a class="flex items-center justify-between px-space-sm py-space-sm rounded-xl font-label-md text-label-md text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors" data-path="recall-management" href="#"><div class="flex items-center gap-space-sm"><span class="material-symbols-outlined text-[20px]">warning</span><span>Recall Management</span></div><span class="px-space-xs py-0.5 rounded-full bg-error-container text-on-error-container font-label-sm text-label-sm uppercase">2 Active</span></a><a class="flex items-center gap-space-sm px-space-sm py-space-sm rounded-xl font-label-md text-label-md text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors" data-path="suppliers" href="#"><span class="material-symbols-outlined text-[20px]">factory</span><span>Suppliers</span></a><a class="flex items-center gap-space-sm px-space-sm py-space-sm rounded-xl font-label-md text-label-md text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors" data-path="evidence-vault" href="#"><span class="material-symbols-outlined text-[20px]">verified_user</span><span>Evidence Vault</span></a><a class="flex items-center gap-space-sm px-space-sm py-space-sm rounded-xl font-label-md text-label-md text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors" data-path="audit-logs" href="#"><span class="material-symbols-outlined text-[20px]">history</span><span>Audit Logs</span></a><a class="flex items-center gap-space-sm px-space-sm py-space-sm rounded-xl font-label-md text-label-md text-on-surface-variant hover:bg-surface-container hover:text-on-surface transition-colors" data-path="settings" href="#"><span class="material-symbols-outlined text-[20px]">settings</span><span>Settings</span></a></nav></div><div class="p-space-sm flex flex-col gap-space-sm bg-surface-container-low"><div class="flex items-center justify-between px-space-xs py-space-xs bg-surface-container rounded-lg"><div class="flex items-center gap-space-xs"><span class="w-2 h-2 rounded-full bg-secondary animate-pulse"></span><span class="font-label-sm text-label-sm text-on-surface-variant">Mesh: 99.99% Operational</span></div></div><div class="flex items-center gap-space-sm p-space-xs rounded-xl bg-surface-container-lowest"><img alt="Profile" class="w-8 h-8 rounded-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCCHzRhPGLneEOLZ8j8EcuuCC3Ze-LutgBUzKW0GEdBHvMZGFwURyqy2BuU8yUcCbFG8Mpv_9GPI0KC5wkz1shu9S9nAl4k-ybmbgCz87ZXnpkSeM5EcZAafQzmwRKIF7OugdZslE5zMsA1W5_Agg3r79M1v-xQADeQVkw9u0GblURIE2SspFFOtzOZtPRZFS6TsKgpI4gLsuvxbzFl0LlgusSD_iXUtkCSQb6wkGI3"/><div class="flex flex-col min-w-0 flex-1"><span class="font-label-md text-label-md text-on-surface truncate font-semibold">Elena Vance</span><span class="font-body-sm text-body-sm text-outline truncate">Dir. Quality &amp; Traceability</span><span class="font-label-sm text-label-sm text-secondary truncate">Apex Nutrition Global</span></div></div></div></aside><div class="pl-[260px]"><header class="fixed top-0 left-[260px] right-0 z-40 bg-surface/80 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.04)]"><div class="h-16 w-full px-space-lg flex items-center justify-between gap-space-md"><div class="flex items-center gap-space-md"><img alt="BatchGuard Brand Shield Logo" class="h-8 w-auto object-contain" src="https://lh3.googleusercontent.com/aida/AEtjO1WK7f9Sz7xXbC7xiVMw4Qoy5A4zBWCByt4c5mLVkZ00JgNX_vPrkJGB8tWLpHD7m3nORkaCm-gYxEhAnhRXcmAiUmB4CB-v33PrXtHGmiMzczQGxZ0in18VM5_gM7VrR1s5jxWw6vvtb6fTdPkUYd2m59lVUN0Xvm3e86_PBn5uMhCXYxJRljUhv9u5EpUWJiBD_ggoqTSK1o-XvNvFxVYqMdt3KxubTyrSMS4mltmlCg"/><div class="flex items-center gap-space-xs font-label-md text-label-md text-on-surface-variant"><span class="text-outline">BatchGuard</span><span class="material-symbols-outlined text-[16px]">chevron_right</span><span class="text-on-surface font-semibold">Operations</span></div></div><div class="flex-1 max-w-xl"><div class="flex items-center gap-space-sm px-space-sm py-1.5 rounded-lg bg-surface-container-low text-on-surface-variant"><span class="material-symbols-outlined text-[18px] text-outline">search</span><span class="font-body-sm text-body-sm text-outline flex-1">Search batch ID, GTIN, supplier, or recall event...</span><span class="font-data-mono-sm text-data-mono-sm px-space-xs py-0.5 rounded bg-surface-container-high text-on-surface-variant">Cmd+K</span></div></div><div class="flex items-center gap-space-md"><div class="flex items-center gap-space-xs px-space-sm py-1 rounded-full bg-surface-container"><span class="w-2 h-2 rounded-full bg-secondary"></span><span class="font-data-mono-sm text-data-mono-sm text-on-surface font-medium">US-EAST PROD</span></div><button class="relative p-space-xs text-on-surface-variant hover:text-on-surface transition-colors" type="button"><span class="material-symbols-outlined text-[20px]">notifications</span><span class="absolute top-1 right-1 w-4 h-4 rounded-full bg-error text-on-error font-label-sm text-label-sm flex items-center justify-center text-[10px]">3</span></button><button class="p-space-xs text-on-surface-variant hover:text-on-surface transition-colors" type="button"><span class="material-symbols-outlined text-[20px]">help</span></button><div class="flex items-center gap-space-xs pl-space-xs"><img alt="Profile" class="w-8 h-8 rounded-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCCHzRhPGLneEOLZ8j8EcuuCC3Ze-LutgBUzKW0GEdBHvMZGFwURyqy2BuU8yUcCbFG8Mpv_9GPI0KC5wkz1shu9S9nAl4k-ybmbgCz87ZXnpkSeM5EcZAafQzmwRKIF7OugdZslE5zMsA1W5_Agg3r79M1v-xQADeQVkw9u0GblURIE2SspFFOtzOZtPRZFS6TsKgpI4gLsuvxbzFl0LlgusSD_iXUtkCSQb6wkGI3"/><span class="material-symbols-outlined text-[18px] text-on-surface-variant">expand_more</span></div></div></div></header><main class="w-full pt-16 bg-surface"><div class="flex flex-col w-full">
+<div class="px-gutter py-space-lg flex flex-col gap-space-lg">
+<!-- Top Action & Navigation Banner -->
+<div class="flex flex-col gap-space-sm">
+<div class="flex items-center gap-space-xs font-label-md text-label-md text-outline">
+<a class="hover:text-on-surface transition-colors" href="#">Batches</a>
+<span class="material-symbols-outlined text-[14px]">chevron_right</span>
+<a class="hover:text-on-surface transition-colors" href="#">Organic Baby Spinach 16oz</a>
+<span class="material-symbols-outlined text-[14px]">chevron_right</span>
+<span class="font-data-mono-sm text-data-mono-sm text-primary font-semibold">BG-2024-8891-ORG</span>
+</div>
+<div class="flex flex-col lg:flex-row lg:items-center justify-between gap-space-md mt-space-xs">
+<div class="flex flex-col gap-space-xs">
+<div class="flex flex-wrap items-center gap-space-sm">
+<h1 class="font-headline-lg text-headline-lg text-on-surface tracking-tight">Batch Profile: BG-2024-8891-ORG</h1>
+<span class="font-data-mono-sm text-data-mono-sm px-space-sm py-0.5 rounded-full bg-surface-container-high text-on-surface font-medium flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px] text-outline">qr_code_2</span>
+              GTIN: 00850012345678
+            </span>
+</div>
+<div class="flex flex-wrap items-center gap-space-xs pt-1">
+<!-- FSMA 204 Compliant -->
+<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-secondary-fixed text-on-secondary-fixed-variant font-label-sm text-label-sm uppercase tracking-wider">
+<span class="w-1.5 h-1.5 rounded-full bg-secondary"></span>
+              FSMA 204 Compliant
+            </span>
+<!-- Status In Transit -->
+<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-tertiary-fixed text-tertiary-container font-label-sm text-label-sm uppercase tracking-wider">
+<span class="w-1.5 h-1.5 rounded-full bg-tertiary animate-pulse"></span>
+              Status: In Transit
+            </span>
+<!-- Cold Chain Telemetry -->
+<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-primary-fixed text-primary font-label-sm text-label-sm uppercase tracking-wider">
+<span class="material-symbols-outlined text-[13px] text-secondary">device_thermostat</span>
+              Cold Chain: Optimal 3.2°C
+            </span>
+<!-- Critical Tracking Sync -->
+<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant font-data-mono-sm text-data-mono-sm">
+<span class="material-symbols-outlined text-[12px] text-secondary">verified</span>
+              GS1 EPCIS v1.2 Ledger Synced
+            </span>
+</div>
+</div>
+<!-- Action Buttons -->
+<div class="flex flex-wrap items-center gap-space-xs">
+<button class="h-[38px] px-3.5 rounded-lg bg-surface-container-lowest hover:bg-surface-container text-on-surface shadow-sm font-label-md text-label-md flex items-center gap-1.5 transition-all" type="button">
+<span class="material-symbols-outlined text-[18px] text-outline">print</span>
+<span>Print GS1-128 Placard</span>
+</button>
+<button class="h-[38px] px-3.5 rounded-lg bg-surface-container-lowest hover:bg-surface-container text-on-surface shadow-sm font-label-md text-label-md flex items-center gap-1.5 transition-all" type="button">
+<span class="material-symbols-outlined text-[18px] text-outline">download</span>
+<span>Traceability Dossier (PDF)</span>
+</button>
+<button class="h-[38px] px-3.5 rounded-lg bg-surface-container hover:bg-surface-container-high text-on-surface-variant font-label-md text-label-md flex items-center gap-1.5 transition-all" type="button">
+<span class="material-symbols-outlined text-[18px] text-outline">flag</span>
+<span>Flag Safety Review</span>
+</button>
+<button class="h-[38px] px-4 rounded-lg bg-error text-on-error hover:bg-[#a01616] shadow-sm font-label-md text-label-md flex items-center gap-1.5 transition-all" id="recall-modal-btn" type="button">
+<span class="material-symbols-outlined text-[18px]">emergency_home</span>
+<span>+ Initiate Targeted Recall</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Top Overview Grid (4 Bento Cards) -->
+<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-space-md">
+<!-- Card 1: Product Details -->
+<div class="rounded-xl bg-surface-container-lowest p-space-md shadow-sm flex flex-col justify-between relative overflow-hidden group">
+<div class="absolute top-0 right-0 w-24 h-24 bg-primary/5 rounded-bl-full pointer-events-none transition-transform group-hover:scale-110"></div>
+<div>
+<div class="flex items-center justify-between text-outline mb-space-sm">
+<span class="font-label-sm text-label-sm uppercase tracking-wider">Product Identification</span>
+<span class="material-symbols-outlined text-[20px] text-secondary">eco</span>
+</div>
+<h2 class="font-headline-sm text-headline-sm text-on-surface leading-snug">Organic Baby Spinach</h2>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-0.5">16oz Clamshell Package</p>
+<div class="mt-space-md flex flex-col gap-1.5">
+<div class="flex items-center justify-between text-body-sm font-body-sm">
+<span class="text-outline">SKU ID:</span>
+<span class="font-data-mono-sm text-data-mono-sm font-medium text-on-surface">#SPN-16-ORG</span>
+</div>
+<div class="flex items-center justify-between text-body-sm font-body-sm">
+<span class="text-outline">Lot Code:</span>
+<span class="font-data-mono-sm text-data-mono-sm font-medium text-on-surface">#L-8891-A</span>
+</div>
+<div class="flex items-center justify-between text-body-sm font-body-sm">
+<span class="text-outline">Batch Units:</span>
+<span class="font-data-mono-sm text-data-mono-sm font-medium text-on-surface">14,400 Cases</span>
+</div>
+</div>
+</div>
+<div class="mt-space-md pt-space-sm bg-surface-container-low rounded-lg p-space-xs flex items-center justify-between">
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-outline">Harvest Date</span>
+<span class="font-data-mono-sm text-data-mono-sm font-semibold text-on-surface">Oct 12, 2024</span>
+</div>
+<div class="flex flex-col items-end">
+<span class="font-label-sm text-label-sm text-outline">Expiration</span>
+<span class="font-data-mono-sm text-data-mono-sm font-semibold text-error">Nov 02, 2024</span>
+</div>
+</div>
+</div>
+<!-- Card 2: Origin & Harvest -->
+<div class="rounded-xl bg-surface-container-lowest p-space-md shadow-sm flex flex-col justify-between relative overflow-hidden group">
+<div>
+<div class="flex items-center justify-between text-outline mb-space-sm">
+<span class="font-label-sm text-label-sm uppercase tracking-wider">Origin &amp; Agricultural Site</span>
+<span class="material-symbols-outlined text-[20px] text-tertiary">agriculture</span>
+</div>
+<h2 class="font-headline-sm text-headline-sm text-on-surface leading-snug">Green Valley Organics</h2>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-0.5">Plot Field 14B · Salinas, CA</p>
+<div class="mt-space-md flex flex-col gap-1.5">
+<div class="flex items-center justify-between text-body-sm font-body-sm">
+<span class="text-outline">Farm GPS:</span>
+<span class="font-data-mono-sm text-data-mono-sm font-medium text-primary">36.6777° N, 121.6555° W</span>
+</div>
+<div class="flex items-center justify-between text-body-sm font-body-sm">
+<span class="text-outline">Crew Supervisor:</span>
+<span class="font-body-sm text-body-sm text-on-surface">Crew #44 (M. Hernandez)</span>
+</div>
+<div class="flex items-center justify-between text-body-sm font-body-sm">
+<span class="text-outline">Seed Lot Code:</span>
+<span class="font-data-mono-sm text-data-mono-sm text-on-surface">#SD-098-SPN</span>
+</div>
+</div>
+</div>
+<div class="mt-space-md pt-space-sm bg-surface-container-low rounded-lg p-space-xs flex items-center justify-between">
+<div class="flex items-center gap-1.5">
+<span class="w-2 h-2 rounded-full bg-secondary"></span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Soil &amp; Water Matrix</span>
+</div>
+<span class="font-data-mono-sm text-data-mono-sm text-secondary font-semibold">Pass (#WQ-9921)</span>
+</div>
+</div>
+<!-- Card 3: Processing & Packaging -->
+<div class="rounded-xl bg-surface-container-lowest p-space-md shadow-sm flex flex-col justify-between relative overflow-hidden group">
+<div>
+<div class="flex items-center justify-between text-outline mb-space-sm">
+<span class="font-label-sm text-label-sm uppercase tracking-wider">Processing &amp; Packaging</span>
+<span class="material-symbols-outlined text-[20px] text-tertiary">precision_manufacturing</span>
+</div>
+<h2 class="font-headline-sm text-headline-sm text-on-surface leading-snug">Apex Fresh Processing #2</h2>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-0.5">Sanitary Line 3 · Gilroy, CA</p>
+<div class="mt-space-md flex flex-col gap-1.5">
+<div class="flex items-center justify-between text-body-sm font-body-sm">
+<span class="text-outline">Sanitizer:</span>
+<span class="font-data-mono-sm text-data-mono-sm text-on-surface">Ozonated H₂O (4.1 ppm)</span>
+</div>
+<div class="flex items-center justify-between text-body-sm font-body-sm">
+<span class="text-outline">Optical Sort:</span>
+<span class="font-body-sm text-body-sm text-secondary font-medium">99.88% Defect Free</span>
+</div>
+<div class="flex items-center justify-between text-body-sm font-body-sm">
+<span class="text-outline">MAP Gas Mix:</span>
+<span class="font-data-mono-sm text-data-mono-sm text-on-surface">3.2% O₂, 9.8% CO₂</span>
+</div>
+</div>
+</div>
+<div class="mt-space-md pt-space-sm bg-surface-container-low rounded-lg p-space-xs flex items-center justify-between">
+<span class="font-label-sm text-label-sm text-outline">Pack Seal Timestamp</span>
+<span class="font-data-mono-sm text-data-mono-sm font-semibold text-on-surface">Oct 13 · 04:30:18 AM</span>
+</div>
+</div>
+<!-- Card 4: Chain of Custody & Telemetry -->
+<div class="rounded-xl bg-surface-container-lowest p-space-md shadow-sm flex flex-col justify-between relative overflow-hidden group">
+<div>
+<div class="flex items-center justify-between text-outline mb-space-sm">
+<span class="font-label-sm text-label-sm uppercase tracking-wider">Custody &amp; Telemetry</span>
+<span class="material-symbols-outlined text-[20px] text-secondary">local_shipping</span>
+</div>
+<h2 class="font-headline-sm text-headline-sm text-on-surface leading-snug">Apex Pacific Logistics</h2>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-0.5">Reefer Trailer #402 · Driver 18</p>
+<div class="mt-space-md flex flex-col gap-1.5">
+<div class="flex items-center justify-between text-body-sm font-body-sm">
+<span class="text-outline">Destination Hub:</span>
+<span class="font-body-sm text-body-sm text-on-surface font-medium truncate max-w-[120px]">Midwest Central (IL)</span>
+</div>
+<div class="flex items-center justify-between text-body-sm font-body-sm">
+<span class="text-outline">Temp Range:</span>
+<span class="font-data-mono-sm text-data-mono-sm text-on-surface">Min 2.8°C · Max 4.1°C</span>
+</div>
+<div class="flex items-center justify-between text-body-sm font-body-sm">
+<span class="text-outline">Mean Setpoint:</span>
+<span class="font-data-mono-sm text-data-mono-sm text-secondary font-bold">3.4°C (Target 3.0-4.0)</span>
+</div>
+</div>
+</div>
+<!-- Telemetry Sparkline -->
+<div class="mt-space-md pt-space-sm bg-surface-container-low rounded-lg p-space-xs flex items-center justify-between">
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-outline">Thermal Variance</span>
+<span class="font-data-mono-sm text-data-mono-sm text-secondary font-medium">±0.4°C Standard Dev</span>
+</div>
+<svg class="w-16 h-6 text-secondary" fill="none" viewbox="0 0 64 20">
+<path d="M0 12 L10 10 L20 14 L30 8 L40 9 L50 6 L64 8" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"></path>
+</svg>
+</div>
+</div>
+</div>
+<!-- Middle Section: Comprehensive Interactive Traceability Timeline -->
+<div class="rounded-xl bg-surface-container-lowest p-space-lg shadow-sm flex flex-col gap-space-lg">
+<div class="flex flex-col md:flex-row md:items-center justify-between gap-space-sm">
+<div>
+<div class="flex items-center gap-space-xs">
+<span class="w-2.5 h-2.5 rounded-full bg-secondary"></span>
+<h2 class="font-headline-md text-headline-md text-on-surface">GS1 Critical Tracking Events (CTE) Timeline</h2>
+</div>
+<p class="font-body-md text-body-md text-on-surface-variant mt-0.5">End-to-end Key Data Elements (KDE) captured under FSMA 204 Rule 1.1325 verification framework</p>
+</div>
+<div class="flex items-center gap-space-xs bg-surface-container rounded-lg p-1">
+<button class="px-space-sm py-1 rounded bg-surface-container-lowest text-on-surface font-label-md text-label-md shadow-sm font-semibold" type="button">Detailed Flow</button>
+<button class="px-space-sm py-1 text-on-surface-variant hover:text-on-surface font-label-md text-label-md" type="button">Audit Digest</button>
+<button class="px-space-sm py-1 text-on-surface-variant hover:text-on-surface font-label-md text-label-md" type="button">Sensor Map</button>
+</div>
+</div>
+<!-- Linear Stepper Layout with Rich Context -->
+<div class="relative overflow-x-auto pb-space-sm">
+<div class="min-w-[940px] flex flex-col gap-space-lg">
+<!-- Node 1: Harvest CTE -->
+<div class="flex items-start gap-space-md group">
+<div class="flex flex-col items-center">
+<div class="w-10 h-10 rounded-full bg-primary text-on-primary flex items-center justify-center shadow-md">
+<span class="material-symbols-outlined text-[20px]">potted_plant</span>
+</div>
+<div class="w-0.5 h-24 bg-secondary"></div>
+</div>
+<div class="flex-1 bg-surface-container-low rounded-xl p-space-md transition-all hover:bg-surface-container">
+<div class="flex flex-wrap items-center justify-between gap-space-xs mb-space-xs">
+<div class="flex items-center gap-space-xs">
+<span class="font-data-mono-sm text-data-mono-sm px-2 py-0.5 rounded bg-primary-container text-on-primary-container font-semibold">CTE-01: HARVEST</span>
+<span class="font-headline-sm text-headline-sm text-on-surface">Green Valley Organics · Field 14B</span>
+</div>
+<div class="flex items-center gap-space-xs text-outline font-data-mono-sm text-data-mono-sm">
+<span class="material-symbols-outlined text-[16px]">schedule</span>
+<span>2024-10-12 05:45:00 PDT</span>
+</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-4 gap-space-sm pt-space-xs">
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-outline">KDE: Geographic Coordinate</span>
+<span class="font-data-mono-sm text-data-mono-sm text-on-surface font-medium">36.6777° N, 121.6555° W</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-outline">KDE: Harvesting Crew / GLN</span>
+<span class="font-data-mono-sm text-data-mono-sm text-on-surface font-medium">GLN 0850012000015 (Crew 44)</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-outline">KDE: Agricultural Water Test</span>
+<span class="font-data-mono-sm text-data-mono-sm text-secondary font-medium">&lt;1 CFU/100mL (Clean)</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-outline">Field Ambient Temp</span>
+<span class="font-data-mono-sm text-data-mono-sm text-on-surface font-medium">14.2°C (Clear skies)</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Node 2: Initial Cooling CTE -->
+<div class="flex items-start gap-space-md group">
+<div class="flex flex-col items-center">
+<div class="w-10 h-10 rounded-full bg-primary text-on-primary flex items-center justify-center shadow-md">
+<span class="material-symbols-outlined text-[20px]">ac_unit</span>
+</div>
+<div class="w-0.5 h-24 bg-secondary"></div>
+</div>
+<div class="flex-1 bg-surface-container-low rounded-xl p-space-md transition-all hover:bg-surface-container">
+<div class="flex flex-wrap items-center justify-between gap-space-xs mb-space-xs">
+<div class="flex items-center gap-space-xs">
+<span class="font-data-mono-sm text-data-mono-sm px-2 py-0.5 rounded bg-primary-container text-on-primary-container font-semibold">CTE-02: INITIAL COOLING</span>
+<span class="font-headline-sm text-headline-sm text-on-surface">Salinas Rapid Chill Post-Harvest Hub</span>
+</div>
+<div class="flex items-center gap-space-xs text-outline font-data-mono-sm text-data-mono-sm">
+<span class="material-symbols-outlined text-[16px]">schedule</span>
+<span>2024-10-12 07:15:22 PDT</span>
+</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-4 gap-space-sm pt-space-xs">
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-outline">KDE: Cooling Method</span>
+<span class="font-body-sm text-body-sm text-on-surface font-medium">Forced-air vacuum hydro-cool</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-outline">KDE: Target Pull-Down Time</span>
+<span class="font-data-mono-sm text-data-mono-sm text-secondary font-medium">42 Minutes (Threshold &lt;60m)</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-outline">KDE: Core Pulp Temp Achieved</span>
+<span class="font-data-mono-sm text-data-mono-sm text-on-surface font-medium">3.2°C Stabilized</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-outline">Hydro Safe Residual</span>
+<span class="font-data-mono-sm text-data-mono-sm text-on-surface font-medium">Free Cl: 2.1 mg/L</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Node 3: Transformation CTE -->
+<div class="flex items-start gap-space-md group">
+<div class="flex flex-col items-center">
+<div class="w-10 h-10 rounded-full bg-primary text-on-primary flex items-center justify-center shadow-md">
+<span class="material-symbols-outlined text-[20px]">filter_vintage</span>
+</div>
+<div class="w-0.5 h-24 bg-secondary"></div>
+</div>
+<div class="flex-1 bg-surface-container-low rounded-xl p-space-md transition-all hover:bg-surface-container">
+<div class="flex flex-wrap items-center justify-between gap-space-xs mb-space-xs">
+<div class="flex items-center gap-space-xs">
+<span class="font-data-mono-sm text-data-mono-sm px-2 py-0.5 rounded bg-primary-container text-on-primary-container font-semibold">CTE-03: TRANSFORMATION</span>
+<span class="font-headline-sm text-headline-sm text-on-surface">Gilroy Apex Processing Facility · Unit 2</span>
+</div>
+<div class="flex items-center gap-space-xs text-outline font-data-mono-sm text-data-mono-sm">
+<span class="material-symbols-outlined text-[16px]">schedule</span>
+<span>2024-10-13 04:30:18 PDT</span>
+</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-4 gap-space-sm pt-space-xs">
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-outline">KDE: Input Lot Genealogy</span>
+<span class="font-data-mono-sm text-data-mono-sm text-primary font-medium">SD-098 → SPN-RAW-8821</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-outline">KDE: Sanitation Protocol</span>
+<span class="font-body-sm text-body-sm text-on-surface font-medium">Triple Ozonated Rinse + UV</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-outline">KDE: Output Lot Code Generated</span>
+<span class="font-data-mono-sm text-data-mono-sm text-on-surface font-medium">L-8891-A (14,400 Units)</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-outline">Optical Foreign Object Check</span>
+<span class="font-data-mono-sm text-data-mono-sm text-secondary font-medium">Clean · 0 Rejections</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Node 4: Shipping CTE -->
+<div class="flex items-start gap-space-md group">
+<div class="flex flex-col items-center">
+<div class="w-10 h-10 rounded-full bg-primary text-on-primary flex items-center justify-center shadow-md">
+<span class="material-symbols-outlined text-[20px]">outbox</span>
+</div>
+<div class="w-0.5 h-24 bg-secondary"></div>
+</div>
+<div class="flex-1 bg-surface-container-low rounded-xl p-space-md transition-all hover:bg-surface-container">
+<div class="flex flex-wrap items-center justify-between gap-space-xs mb-space-xs">
+<div class="flex items-center gap-space-xs">
+<span class="font-data-mono-sm text-data-mono-sm px-2 py-0.5 rounded bg-primary-container text-on-primary-container font-semibold">CTE-04: SHIPPING</span>
+<span class="font-headline-sm text-headline-sm text-on-surface">Apex Dispatch Gilroy Dock Door #07</span>
+</div>
+<div class="flex items-center gap-space-xs text-outline font-data-mono-sm text-data-mono-sm">
+<span class="material-symbols-outlined text-[16px]">schedule</span>
+<span>2024-10-13 11:20:00 PDT</span>
+</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-4 gap-space-sm pt-space-xs">
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-outline">KDE: Bill of Lading (eBOL)</span>
+<span class="font-data-mono-sm text-data-mono-sm text-on-surface font-medium">#BOL-99281-GLR</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-outline">KDE: Carrier &amp; Reefer ID</span>
+<span class="font-data-mono-sm text-data-mono-sm text-on-surface font-medium">Apex Logistics #TRK-402</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-outline">KDE: Departure Temp Verification</span>
+<span class="font-data-mono-sm text-data-mono-sm text-secondary font-medium">3.0°C (Pre-cooled container)</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-outline">Digital Seal Lock</span>
+<span class="font-data-mono-sm text-data-mono-sm text-on-surface font-medium">SEAL-908284-SEC</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Node 5: In-Transit Live Telemetry (Active pulse) -->
+<div class="flex items-start gap-space-md group">
+<div class="flex flex-col items-center">
+<div class="w-10 h-10 rounded-full bg-secondary text-surface-container-lowest flex items-center justify-center shadow-lg relative">
+<span class="absolute -inset-1 rounded-full bg-secondary/30 animate-ping"></span>
+<span class="material-symbols-outlined text-[20px] relative z-10">navigation</span>
+</div>
+<div class="w-0.5 h-24 bg-surface-variant"></div>
+</div>
+<div class="flex-1 bg-surface-container rounded-xl p-space-md shadow-sm">
+<div class="flex flex-wrap items-center justify-between gap-space-xs mb-space-xs">
+<div class="flex items-center gap-space-xs">
+<span class="font-data-mono-sm text-data-mono-sm px-2 py-0.5 rounded bg-secondary-fixed text-on-secondary-fixed-variant font-bold animate-pulse">ACTIVE CTE: IN-TRANSIT TELEMETRY</span>
+<span class="font-headline-sm text-headline-sm text-on-surface">I-80 Eastbound · Salt Lake City Corridor</span>
+</div>
+<div class="flex items-center gap-space-xs text-secondary font-data-mono-sm text-data-mono-sm font-semibold">
+<span class="w-2 h-2 rounded-full bg-secondary animate-pulse"></span>
+<span>Live Ping: 2 mins ago</span>
+</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-4 gap-space-sm pt-space-xs">
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-outline">GPS Coordinate</span>
+<span class="font-data-mono-sm text-data-mono-sm text-on-surface font-medium">40.7608° N, 111.8910° W</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-outline">Cargo Temp Probe Avg</span>
+<span class="font-data-mono-sm text-data-mono-sm text-secondary font-bold">3.2°C (Optimal)</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-outline">Door Sensors State</span>
+<span class="font-data-mono-sm text-data-mono-sm text-secondary font-medium">Sealed / Closed (0 Events)</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-outline">Remaining Distance</span>
+<span class="font-data-mono-sm text-data-mono-sm text-on-surface font-medium">1,210 Miles to Midwest Hub</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Node 6: Receiving CTE - Scheduled -->
+<div class="flex items-start gap-space-md opacity-75 group">
+<div class="flex flex-col items-center">
+<div class="w-10 h-10 rounded-full bg-surface-container-high text-outline flex items-center justify-center">
+<span class="material-symbols-outlined text-[20px]">warehouse</span>
+</div>
+</div>
+<div class="flex-1 bg-surface-container-lowest rounded-xl p-space-md shadow-sm">
+<div class="flex flex-wrap items-center justify-between gap-space-xs mb-space-xs">
+<div class="flex items-center gap-space-xs">
+<span class="font-data-mono-sm text-data-mono-sm px-2 py-0.5 rounded bg-surface-container-high text-on-surface-variant font-semibold">CTE-05 (SCHEDULED): RECEIVING</span>
+<span class="font-headline-sm text-headline-sm text-on-surface">Midwest Central Distribution Center · Joliet, IL</span>
+</div>
+<div class="flex items-center gap-space-xs text-outline font-data-mono-sm text-data-mono-sm">
+<span class="material-symbols-outlined text-[16px]">event</span>
+<span>ETA: Oct 15, 2024 · 06:00 CST</span>
+</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-4 gap-space-sm pt-space-xs">
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-outline">Destination GLN</span>
+<span class="font-data-mono-sm text-data-mono-sm text-on-surface">GLN 0085001994821</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-outline">Intake Protocol</span>
+<span class="font-body-sm text-body-sm text-on-surface">Automated Dock Scan + RFID Handshake</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-outline">Assigned Inbound Bay</span>
+<span class="font-data-mono-sm text-data-mono-sm text-on-surface">Cold Dock Bay #14</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-outline">Downstream Allocation</span>
+<span class="font-body-sm text-body-sm text-on-surface">3 Regional Retail Chains</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Bottom Two-Column Grid: Compliance Docs & Component Graph -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-space-md items-start">
+<!-- Left Column: Linked Supporting Compliance Documents (7 Cols) -->
+<div class="lg:col-span-7 rounded-xl bg-surface-container-lowest p-space-md shadow-sm flex flex-col gap-space-md">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-[20px] text-primary">verified_user</span>
+<h2 class="font-headline-sm text-headline-sm text-on-surface">Linked Supporting Compliance Documents</h2>
+</div>
+<span class="font-label-sm text-label-sm text-outline uppercase tracking-wider">4 Verified Records</span>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left">
+<thead>
+<tr class="bg-surface-container-low text-outline font-label-sm text-label-sm uppercase tracking-wider">
+<th class="py-2.5 px-space-md rounded-l-lg">Document / Specification</th>
+<th class="py-2.5 px-space-sm">Issuer / Entity</th>
+<th class="py-2.5 px-space-sm">Status</th>
+<th class="py-2.5 px-space-md text-right rounded-r-lg">Action</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-surface-container text-body-sm font-body-sm">
+<!-- Doc 1 -->
+<tr class="hover:bg-surface-container-low transition-colors">
+<td class="py-3 px-space-md">
+<div class="flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-[18px] text-error">picture_as_pdf</span>
+<div class="flex flex-col">
+<span class="font-label-md text-label-md font-semibold text-on-surface">Microbiological Pathogen Screen</span>
+<span class="font-data-mono-sm text-data-mono-sm text-outline">Negative: E. coli O157:H7 &amp; Salmonella spp.</span>
+</div>
+</div>
+</td>
+<td class="py-3 px-space-sm text-on-surface-variant font-data-mono-sm text-data-mono-sm">BioCert Analytical Labs</td>
+<td class="py-3 px-space-sm">
+<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-secondary-fixed text-on-secondary-fixed-variant font-label-sm text-label-sm">
+<span class="w-1.5 h-1.5 rounded-full bg-secondary"></span>
+                    Verified
+                  </span>
+</td>
+<td class="py-3 px-space-md text-right">
+<a class="font-label-md text-label-md text-primary font-semibold hover:underline" href="#">View PDF</a>
+</td>
+</tr>
+<!-- Doc 2 -->
+<tr class="hover:bg-surface-container-low transition-colors">
+<td class="py-3 px-space-md">
+<div class="flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-[18px] text-secondary">verified</span>
+<div class="flex flex-col">
+<span class="font-label-md text-label-md font-semibold text-on-surface">USDA NOP Organic Certification</span>
+<span class="font-data-mono-sm text-data-mono-sm text-outline">Certificate #ORG-2024-881 (Salinas Valley)</span>
+</div>
+</div>
+</td>
+<td class="py-3 px-space-sm text-on-surface-variant font-data-mono-sm text-data-mono-sm">CCOF Certified Organic</td>
+<td class="py-3 px-space-sm">
+<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-surface-container text-on-surface font-label-sm text-label-sm">
+                    Valid Dec 2025
+                  </span>
+</td>
+<td class="py-3 px-space-md text-right">
+<a class="font-label-md text-label-md text-primary font-semibold hover:underline" href="#">Inspect</a>
+</td>
+</tr>
+<!-- Doc 3 -->
+<tr class="hover:bg-surface-container-low transition-colors">
+<td class="py-3 px-space-md">
+<div class="flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-[18px] text-tertiary">table_chart</span>
+<div class="flex flex-col">
+<span class="font-label-md text-label-md font-semibold text-on-surface">Continuous Reefer Telemetry Log</span>
+<span class="font-data-mono-sm text-data-mono-sm text-outline">2,400 raw readings (60-sec intervals)</span>
+</div>
+</div>
+</td>
+<td class="py-3 px-space-sm text-on-surface-variant font-data-mono-sm text-data-mono-sm">ThermoKing Sentrac Telematics</td>
+<td class="py-3 px-space-sm">
+<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-secondary-fixed text-on-secondary-fixed-variant font-label-sm text-label-sm">
+                    Streaming
+                  </span>
+</td>
+<td class="py-3 px-space-md text-right">
+<a class="font-label-md text-label-md text-primary font-semibold hover:underline" href="#">Raw CSV</a>
+</td>
+</tr>
+<!-- Doc 4 -->
+<tr class="hover:bg-surface-container-low transition-colors">
+<td class="py-3 px-space-md">
+<div class="flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-[18px] text-outline">signature</span>
+<div class="flex flex-col">
+<span class="font-label-md text-label-md font-semibold text-on-surface">Electronic Bill of Lading (eBOL)</span>
+<span class="font-data-mono-sm text-data-mono-sm text-outline">BOL-99281-GLR (Signed: Carrier &amp; Shipper)</span>
+</div>
+</div>
+</td>
+<td class="py-3 px-space-sm text-on-surface-variant font-data-mono-sm text-data-mono-sm">Apex Dispatch Gateway</td>
+<td class="py-3 px-space-sm">
+<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary-fixed text-primary font-label-sm text-label-sm">
+                    Counter-signed
+                  </span>
+</td>
+<td class="py-3 px-space-md text-right">
+<a class="font-label-md text-label-md text-primary font-semibold hover:underline" href="#">Receipt</a>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<!-- Right Column: Traceability Graph & Component Inputs + Risk Score (5 Cols) -->
+<div class="lg:col-span-5 flex flex-col gap-space-md">
+<!-- Component Tree Panel -->
+<div class="rounded-xl bg-surface-container-lowest p-space-md shadow-sm flex flex-col gap-space-md">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-[20px] text-secondary">account_tree</span>
+<h2 class="font-headline-sm text-headline-sm text-on-surface">Component Inputs &amp; BOM</h2>
+</div>
+<span class="font-data-mono-sm text-data-mono-sm text-outline">100% Sourced</span>
+</div>
+<div class="flex flex-col gap-space-sm">
+<!-- Produce Leaf -->
+<div class="flex items-center justify-between p-space-sm bg-surface-container-low rounded-lg">
+<div class="flex items-center gap-space-sm">
+<span class="w-8 h-8 rounded-lg bg-primary-container text-on-primary-container flex items-center justify-center font-bold text-xs">95%</span>
+<div class="flex flex-col">
+<span class="font-label-md text-label-md text-on-surface font-semibold">Spinach Leaves (Raw)</span>
+<span class="font-data-mono-sm text-data-mono-sm text-outline">100% Field 14B · Lot #SD-098</span>
+</div>
+</div>
+<span class="font-label-sm text-label-sm text-secondary font-semibold">Tier 1 Pure</span>
+</div>
+<!-- Packaging Clamshell -->
+<div class="flex items-center justify-between p-space-sm bg-surface-container-low rounded-lg">
+<div class="flex items-center gap-space-sm">
+<span class="w-8 h-8 rounded-lg bg-surface-container text-on-surface flex items-center justify-center font-bold text-xs">PKG</span>
+<div class="flex flex-col">
+<span class="font-label-md text-label-md text-on-surface font-semibold">Recycled PET Clamshell 16oz</span>
+<span class="font-data-mono-sm text-data-mono-sm text-outline">Batch #PK-4491 · Amcor Eco</span>
+</div>
+</div>
+<span class="font-label-sm text-label-sm text-outline font-medium">Food Contact Grade</span>
+</div>
+<!-- Film Seal -->
+<div class="flex items-center justify-between p-space-sm bg-surface-container-low rounded-lg">
+<div class="flex items-center gap-space-sm">
+<span class="w-8 h-8 rounded-lg bg-surface-container text-on-surface flex items-center justify-center font-bold text-xs">SEAL</span>
+<div class="flex flex-col">
+<span class="font-label-md text-label-md text-on-surface font-semibold">Anti-Fog Laser-Perforated Film</span>
+<span class="font-data-mono-sm text-data-mono-sm text-outline">Supplier: Sealed Air Corp</span>
+</div>
+</div>
+<span class="font-label-sm text-label-sm text-outline font-medium">MAP Optimized</span>
+</div>
+</div>
+</div>
+<!-- Safety & Risk Panel -->
+<div class="rounded-xl bg-surface-container-lowest p-space-md shadow-sm flex flex-col gap-space-sm relative overflow-hidden">
+<div class="flex items-center justify-between">
+<span class="font-label-sm text-label-sm uppercase tracking-wider text-outline">Safety &amp; Recall Assessment</span>
+<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-secondary-fixed text-on-secondary-fixed-variant font-label-sm text-label-sm">
+<span class="w-1.5 h-1.5 rounded-full bg-secondary"></span>
+              Low Threat Exposure
+            </span>
+</div>
+<div class="flex items-center justify-between mt-space-xs">
+<div class="flex flex-col">
+<span class="font-headline-md text-headline-md text-on-surface">Zero Active Recalls</span>
+<p class="font-body-sm text-body-sm text-on-surface-variant">No alerts matching seed, lot, field, or line equipment within 60 days.</p>
+</div>
+<div class="text-right">
+<span class="font-data-mono text-data-mono font-bold text-secondary text-lg">0.02 / 1.00</span>
+<span class="font-label-sm text-label-sm text-outline block">Batch Risk Score</span>
+</div>
+</div>
+<div class="w-full bg-surface-container rounded-full h-2 mt-space-xs overflow-hidden">
+<div class="bg-secondary h-full rounded-full" style="width: 2%;"></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Modal Dialog: Initiate Targeted Recall (Controlled via JS) -->
+<div class="fixed inset-0 z-50 bg-[#0b1c30]/60 backdrop-blur-sm hidden flex items-center justify-center p-space-md" id="recall-modal-overlay">
+<div class="w-full max-w-xl rounded-2xl bg-surface-container-lowest shadow-2xl overflow-hidden flex flex-col">
+<!-- Modal Header -->
+<div class="p-space-lg bg-surface-container-low flex items-start justify-between">
+<div class="flex flex-col gap-1">
+<span class="font-label-sm text-label-sm px-2.5 py-0.5 rounded-full bg-error-container text-on-error-container font-semibold uppercase tracking-wider w-max">
+            Crisis Command &amp; Trace Protocol
+          </span>
+<h3 class="font-headline-md text-headline-md text-on-surface mt-1">Initiate Targeted Recall: BG-2024-8891-ORG</h3>
+<p class="font-body-sm text-body-sm text-outline">Trigger downstream notifications and lock GTIN at all distribution nodes.</p>
+</div>
+<button class="text-outline hover:text-on-surface p-1 rounded-lg" id="close-recall-modal" type="button">
+<span class="material-symbols-outlined text-[22px]">close</span>
+</button>
+</div>
+<!-- Modal Body -->
+<div class="p-space-lg flex flex-col gap-space-md">
+<div class="p-space-md rounded-xl bg-error-container/40 flex items-start gap-space-sm text-on-error-container">
+<span class="material-symbols-outlined text-[24px] text-error flex-shrink-0">warning</span>
+<div class="font-body-sm text-body-sm">
+<strong class="font-semibold block text-error">Warning: Destructive Production Action</strong>
+            Executing this protocol triggers GS1 EPCIS Quarantine flags, sends FDA/USDA e-notices, and forces Carrier #TRK-402 to reroute to the nearest isolation quarantine bay.
+          </div>
+</div>
+<div class="flex flex-col gap-1.5">
+<label class="font-label-md text-label-md text-on-surface font-semibold">Select Recall Severity Classification</label>
+<select class="h-10 px-space-sm rounded-lg bg-surface-container-low text-on-surface font-body-md text-body-md outline-none">
+<option>Class I - Health Hazard (Immediate Adverse Risk)</option>
+<option>Class II - Potential Temporary Hazard</option>
+<option>Class III - Regulatory Labeling Defect</option>
+<option selected="">Mock Drill / Unannounced Audit Exercise</option>
+</select>
+</div>
+<div class="flex flex-col gap-1.5">
+<label class="font-label-md text-label-md text-on-surface font-semibold">Security Confirmation Phrase</label>
+<span class="font-body-sm text-body-sm text-outline">Type <strong class="font-data-mono-sm text-on-surface">CONFIRM-RECALL-8891</strong> to unlock command:</span>
+<input class="h-10 px-space-sm rounded-lg bg-surface-container-low text-on-surface font-data-mono text-data-mono outline-none" id="recall-input" placeholder="CONFIRM-RECALL-8891" type="text"/>
+</div>
+</div>
+<!-- Destructive Footer Bar -->
+<div class="p-space-lg bg-surface-container-low flex items-center justify-between">
+<button class="px-space-md py-2 rounded-lg font-label-md text-label-md text-on-surface-variant hover:text-on-surface" id="cancel-recall-btn" type="button">
+          Cancel &amp; Stand Down
+        </button>
+<button class="px-space-lg py-2 rounded-lg bg-error text-on-error opacity-40 cursor-not-allowed font-label-md text-label-md font-semibold transition-all" disabled="" id="confirm-recall-action" type="button">
+          Authorize Lockdown &amp; Dispatch
+        </button>
+</div>
+</div>
+</div>
+<script>
+    // Micro-interactions for Recall Modal
+    const modalBtn = document.getElementById('recall-modal-btn');
+    const modalOverlay = document.getElementById('recall-modal-overlay');
+    const closeBtn = document.getElementById('close-recall-modal');
+    const cancelBtn = document.getElementById('cancel-recall-btn');
+    const recallInput = document.getElementById('recall-input');
+    const confirmAction = document.getElementById('confirm-recall-action');
+
+    function openModal() {
+      modalOverlay.classList.remove('hidden');
+    }
+
+    function closeModal() {
+      modalOverlay.classList.add('hidden');
+      if (recallInput) {
+        recallInput.value = '';
+      }
+      if (confirmAction) {
+        confirmAction.disabled = true;
+        confirmAction.classList.add('opacity-40', 'cursor-not-allowed');
+      }
+    }
+
+    if (modalBtn) modalBtn.addEventListener('click', openModal);
+    if (closeBtn) closeBtn.addEventListener('click', closeModal);
+    if (cancelBtn) cancelBtn.addEventListener('click', closeModal);
+
+    if (recallInput) {
+      recallInput.addEventListener('input', (e) => {
+        if (e.target.value.trim() === 'CONFIRM-RECALL-8891') {
+          confirmAction.disabled = false;
+          confirmAction.classList.remove('opacity-40', 'cursor-not-allowed');
+        } else {
+          confirmAction.disabled = true;
+          confirmAction.classList.add('opacity-40', 'cursor-not-allowed');
+        }
+      });
+    }
+  </script>
+</div></main></div></body></html>
