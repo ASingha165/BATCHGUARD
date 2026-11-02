@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { apiService } from '../services/api';
+import { exportSafetyAuditCsv } from '../services/exportAudit';
 import { Batch, OverviewSummary } from '../types';
 import { StatusBadge } from '../components/common/StatusBadge';
 import { Button } from '../components/common/Button';
@@ -29,12 +30,25 @@ export const OverviewPage: React.FC = () => {
     loadData();
   }, []);
 
+  const isLiveBackend = Boolean(import.meta.env.VITE_API_BASE_URL);
+
   const handleExportAudit = () => {
-    addToast({
-      type: 'success',
-      title: 'Safety Audit Export Initiated',
-      description: 'Compiled FSMA 204 KDE compliance dossier (PDF/CSV) ready for download.',
-    });
+    try {
+      exportSafetyAuditCsv();
+      addToast({
+        type: 'success',
+        title: 'Safety Audit Exported (CSV)',
+        description: isLiveBackend
+          ? 'Compiled live FSMA 204 audit dossier (CSV) downloaded successfully.'
+          : 'Downloaded batchguard-safety-audit-demo.csv (clearly labeled demonstration dataset).',
+      });
+    } catch {
+      addToast({
+        type: 'error',
+        title: 'Export Failed',
+        description: 'Unable to generate CSV audit report.',
+      });
+    }
   };
 
   return (
@@ -42,17 +56,24 @@ export const OverviewPage: React.FC = () => {
       {/* Page Header & Actions */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-space-md">
         <div className="flex flex-col gap-space-xs">
-          <div className="flex items-center gap-space-xs">
+          <div className="flex items-center gap-space-xs flex-wrap">
             <span className="w-2.5 h-2.5 rounded-full bg-secondary animate-pulse" />
             <span className="font-data-mono-sm text-data-mono-sm uppercase text-secondary font-semibold tracking-wider">
-              GS1 &amp; FSMA 204 Continuous Sentinel
+              FSMA 204 &amp; GS1 Traceability Framework
+            </span>
+            <span className={`px-2 py-0.5 rounded text-[11px] font-bold tracking-wider ${
+              isLiveBackend
+                ? 'bg-secondary/15 text-secondary border border-secondary/30'
+                : 'bg-amber-500/15 text-amber-700 border border-amber-500/30'
+            }`}>
+              {isLiveBackend ? 'LIVE AWS METRICS' : 'DEMO DATASET'}
             </span>
           </div>
           <h1 className="font-headline-lg text-headline-lg text-on-surface tracking-tight font-bold">
             Operational Overview
           </h1>
           <p className="font-body-md text-body-md text-on-surface-variant max-w-2xl">
-            Real-time enterprise food traceability, multi-node custody tracking, and active incident containment posture.
+            Enterprise food supply-chain traceability, multi-node custody tracking, and active incident containment posture.
           </p>
         </div>
 
@@ -60,7 +81,7 @@ export const OverviewPage: React.FC = () => {
           <Button variant="secondary" icon="file_download" onClick={handleExportAudit}>
             Export Safety Audit (PDF/CSV)
           </Button>
-          <Button variant="primary" icon="add" onClick={() => navigate('/batches')}>
+          <Button variant="primary" icon="add" onClick={() => navigate('/batches?register=true')}>
             Register New Batch
           </Button>
         </div>
@@ -73,11 +94,13 @@ export const OverviewPage: React.FC = () => {
             <span className="material-symbols-outlined text-[20px]">verified_user</span>
           </div>
           <p className="font-body-sm text-body-sm text-on-surface truncate">
-            <span className="font-semibold text-secondary">Automated FSMA 204 KDE compliance active</span> across 14 manufacturing nodes. All critical tracking event manifests synced.
+            <span className="font-semibold text-secondary">FSMA 204 KDE Traceability Architecture Active</span> across modeled logistics nodes. Critical tracking event schemas aligned.
           </p>
         </div>
         <div className="flex items-center gap-space-md shrink-0">
-          <span className="font-data-mono-sm text-data-mono-sm text-outline hidden sm:inline">Last verified 4 mins ago</span>
+          <span className="font-data-mono-sm text-data-mono-sm text-outline hidden sm:inline">
+            {isLiveBackend ? 'Live telemetry synced' : 'Simulated telemetry: 4 mins ago'}
+          </span>
           <Link to="/audit-logs" className="text-secondary hover:underline font-label-sm text-label-sm font-semibold flex items-center gap-0.5">
             <span>Telemetry Ledger</span>
             <span className="material-symbols-outlined text-[14px]">arrow_forward</span>

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { apiService } from '../services/api';
 import { Batch } from '../types';
 import { StatusBadge } from '../components/common/StatusBadge';
@@ -8,6 +8,7 @@ import { useToast } from '../components/common/Toast';
 
 export const BatchRegistryPage: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { addToast } = useToast();
   const [batches, setBatches] = useState<Batch[]>([]);
   const [selectedFilter, setSelectedFilter] = useState('ALL');
@@ -22,6 +23,14 @@ export const BatchRegistryPage: React.FC = () => {
   const [newSupplier, setNewSupplier] = useState('Salinas Valley Organics');
 
   useEffect(() => {
+    if (searchParams.get('register') === 'true') {
+      setIsRegisterModalOpen(true);
+      searchParams.delete('register');
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
+
+  useEffect(() => {
     async function loadBatches() {
       const data = await apiService.getBatches(selectedFilter);
       setBatches(data);
@@ -31,11 +40,20 @@ export const BatchRegistryPage: React.FC = () => {
 
   const handleCreateBatch = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!newLotNumber.trim() || !newGtin.trim() || !newProductName.trim()) {
+      addToast({
+        type: 'warning',
+        title: 'Validation Error',
+        description: 'Please complete all required lot fields (Product Name, Lot Number, GTIN).',
+      });
+      return;
+    }
+
     try {
       const created = await apiService.createBatch({
-        lotNumber: newLotNumber,
-        gtin: newGtin,
-        productName: newProductName,
+        lotNumber: newLotNumber.trim(),
+        gtin: newGtin.trim(),
+        productName: newProductName.trim(),
         initialQuantity: parseInt(newQuantity) || 10000,
         unitOfMeasure: 'CASES',
         supplierId: 'SUP-882',
@@ -47,10 +65,13 @@ export const BatchRegistryPage: React.FC = () => {
 
       setBatches((prev) => [created, ...prev]);
       setIsRegisterModalOpen(false);
+      const isLive = Boolean(import.meta.env.VITE_API_BASE_URL);
       addToast({
         type: 'success',
-        title: 'Batch Successfully Registered',
-        description: `New lot ${created.batchId} added to traceability ledger.`,
+        title: isLive ? 'Batch Successfully Registered' : 'Batch Registered (Demo Mode)',
+        description: isLive
+          ? `New lot ${created.batchId} persisted to AWS DynamoDB ledger.`
+          : `New lot ${created.batchId} recorded in local session state (Demo Mode - Not persisted to AWS).`,
       });
     } catch {
       addToast({

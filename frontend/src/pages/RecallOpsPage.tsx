@@ -944,7 +944,9 @@ export const RecallOpsPage: React.FC = () => {
                       className="h-[38px] px-space-sm rounded-lg border border-surface-container bg-surface-container-lowest font-data-mono text-on-surface focus:border-primary outline-none"
                     />
                     <span className="font-body-sm text-xs text-outline mt-1">
-                      [Integration Placeholder: In production, a cryptographically signed MFA token is verified via AWS Cognito. Enter any 6-digit numeric code to simulate authorization.]
+                      {Boolean(import.meta.env.VITE_API_BASE_URL)
+                        ? 'Enter the 6-digit TOTP security token from your enrolled authenticator app. Verified by Amazon Cognito.'
+                        : 'Demo Mode: Enter 6-digit code (e.g. 123456) to simulate 2FA authorization. Live production strictly rejects static tokens and validates dynamic TOTP via Amazon Cognito.'}
                     </span>
                   </div>
                 </div>

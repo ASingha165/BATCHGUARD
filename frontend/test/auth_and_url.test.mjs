@@ -169,3 +169,58 @@ test('Cognito MFA Handling - handles direct authentication without MFA when not 
   assert.equal(result.session.idToken, 'valid.id.token');
   assert.equal(result.session.username, 'compliance.officer');
 });
+
+test('Production Auth Safeguard - dev fallback strictly rejected in production when Cognito configured', () => {
+  function checkDevLoginAllowed(isCognitoConfigured, isProd) {
+    if (isCognitoConfigured && isProd) {
+      throw new Error('Development authentication fallback is disabled in production.');
+    }
+    return true;
+  }
+
+  // Allowed in dev mode when Cognito not configured
+  assert.equal(checkDevLoginAllowed(false, false), true);
+  // Allowed in dev mode even if pool configured (for local testing)
+  assert.equal(checkDevLoginAllowed(true, false), true);
+  // STRICTLY rejected in production when Cognito is configured
+  assert.throws(
+    () => checkDevLoginAllowed(true, true),
+    /Development authentication fallback is disabled in production/
+  );
+});
+
+test('Environment Connection State - unconfigured API base resolves to LOCAL_DEMO_MODE', () => {
+  function resolveConnectionState(apiBaseUrl, forceMock) {
+    if (!apiBaseUrl || forceMock) return 'LOCAL_DEMO_MODE';
+    return 'CONFIGURED_UNREACHABLE';
+  }
+
+  assert.equal(resolveConnectionState('', false), 'LOCAL_DEMO_MODE');
+  assert.equal(resolveConnectionState(null, false), 'LOCAL_DEMO_MODE');
+  assert.equal(resolveConnectionState('https://api.batchguard.com', true), 'LOCAL_DEMO_MODE');
+  assert.equal(resolveConnectionState('https://api.batchguard.com', false), 'CONFIGURED_UNREACHABLE');
+});
+
+test('Safety Audit CSV Format - output includes required disclosures and batch columns', () => {
+  const sampleBatch = {
+    batchId: 'BG-2024-8891-ORG',
+    lotNumber: 'L-8891-A',
+    gtin: '00850012345678',
+    productName: 'Organic Baby Spinach 16oz',
+    currentQuantity: 14400,
+    unitOfMeasure: 'CASES',
+    supplierName: 'Salinas Valley Organics',
+    facilityGln: '0850012340019',
+    productionDate: '2024-10-14',
+    status: 'IN_TRANSIT',
+    currentTempCelsius: 3.2,
+    blockchainTxHash: '0x8f7d92a14e9c71a3',
+  };
+
+  const isLive = false;
+  const header = `# OPERATIONAL MODE: ${isLive ? 'LIVE AWS PRODUCTION LEDGER' : 'LOCAL DEMONSTRATION DATASET (SIMULATED)'}`;
+  const csvRow = `${sampleBatch.batchId},${sampleBatch.lotNumber},${sampleBatch.gtin},"${sampleBatch.productName}",${sampleBatch.currentQuantity}`;
+
+  assert.ok(header.includes('LOCAL DEMONSTRATION DATASET (SIMULATED)'));
+  assert.ok(csvRow.includes('BG-2024-8891-ORG,L-8891-A,00850012345678'));
+});

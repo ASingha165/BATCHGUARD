@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DEMO_BATCHES, DEMO_SUPPLIERS } from '../../services/mockData';
 import { authService, UserSession } from '../../services/auth';
+import { checkBackendConnection, BackendConnectionStatus, getCachedConnectionStatus } from '../../services/api';
 
 interface HeaderProps {
   currentSection?: string;
@@ -15,6 +16,7 @@ export const Header: React.FC<HeaderProps> = ({ currentSection = 'Operations', o
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [session, setSession] = useState<UserSession | null>(authService.getSession());
+  const [connStatus, setConnStatus] = useState<BackendConnectionStatus>(getCachedConnectionStatus());
 
   // Login Modal State
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
@@ -38,6 +40,8 @@ export const Header: React.FC<HeaderProps> = ({ currentSection = 'Operations', o
     const unsubscribeExpired = authService.onSessionExpired(() => {
       setIsLoginModalOpen(true);
     });
+
+    checkBackendConnection().then(setConnStatus);
 
     return () => {
       unsubscribeAuth();
@@ -182,10 +186,35 @@ export const Header: React.FC<HeaderProps> = ({ currentSection = 'Operations', o
               <span className="material-symbols-outlined text-[20px]">search</span>
             </button>
 
-            <div className="hidden sm:flex items-center gap-space-xs px-space-sm py-1 rounded-full bg-surface-container border border-surface-container-high">
-              <span className={`w-2 h-2 rounded-full ${authService.isCognitoConfigured() && !session?.isDevMode ? 'bg-secondary animate-pulse' : 'bg-warning'}`} />
+            <div
+              className="hidden sm:flex items-center gap-space-xs px-space-sm py-1 rounded-full bg-surface-container border border-surface-container-high"
+              title={
+                connStatus === 'AUTHENTICATED_LIVE'
+                  ? 'Connected to live AWS API Gateway with authenticated session'
+                  : connStatus === 'CONFIGURED_UNREACHABLE'
+                  ? 'Remote API URL is configured but unreachable'
+                  : connStatus === 'BACKEND_UNAVAILABLE'
+                  ? 'Remote server returned 5xx error'
+                  : 'Operating in local demonstration mode with simulated data'
+              }
+            >
+              <span
+                className={`w-2 h-2 rounded-full ${
+                  connStatus === 'AUTHENTICATED_LIVE'
+                    ? 'bg-secondary animate-pulse'
+                    : connStatus === 'CONFIGURED_UNREACHABLE' || connStatus === 'BACKEND_UNAVAILABLE'
+                    ? 'bg-error'
+                    : 'bg-warning'
+                }`}
+              />
               <span className="font-data-mono-sm text-data-mono-sm text-on-surface font-semibold tracking-wider">
-                {authService.isCognitoConfigured() && !session?.isDevMode ? 'US-EAST PROD' : 'LOCAL DEMO MODE'}
+                {connStatus === 'AUTHENTICATED_LIVE'
+                  ? 'US-EAST PROD (LIVE)'
+                  : connStatus === 'CONFIGURED_UNREACHABLE'
+                  ? 'API UNREACHABLE'
+                  : connStatus === 'BACKEND_UNAVAILABLE'
+                  ? 'BACKEND 5XX'
+                  : 'LOCAL DEMO MODE'}
               </span>
             </div>
 

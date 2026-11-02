@@ -69,6 +69,51 @@ export function buildApiUrl(baseUrl: string, endpoint: string): string {
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
 const FORCE_MOCK = import.meta.env.VITE_USE_MOCK_DATA === 'true';
 
+export type BackendConnectionStatus =
+  | 'LOCAL_DEMO_MODE'
+  | 'CONFIGURED_UNREACHABLE'
+  | 'AUTHENTICATED_LIVE'
+  | 'BACKEND_UNAVAILABLE';
+
+let cachedConnectionStatus: BackendConnectionStatus =
+  !API_BASE_URL || FORCE_MOCK ? 'LOCAL_DEMO_MODE' : 'CONFIGURED_UNREACHABLE';
+
+export async function checkBackendConnection(): Promise<BackendConnectionStatus> {
+  if (!API_BASE_URL || FORCE_MOCK) {
+    cachedConnectionStatus = 'LOCAL_DEMO_MODE';
+    return 'LOCAL_DEMO_MODE';
+  }
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3500);
+    const url = buildApiUrl(API_BASE_URL, '/overview/summary');
+    const res = await fetch(url, {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+      signal: controller.signal,
+    }).finally(() => clearTimeout(timeoutId));
+
+    if (res.ok) {
+      cachedConnectionStatus = 'AUTHENTICATED_LIVE';
+      return 'AUTHENTICATED_LIVE';
+    }
+    if (res.status >= 500) {
+      cachedConnectionStatus = 'BACKEND_UNAVAILABLE';
+      return 'BACKEND_UNAVAILABLE';
+    }
+    cachedConnectionStatus = 'CONFIGURED_UNREACHABLE';
+    return 'CONFIGURED_UNREACHABLE';
+  } catch {
+    cachedConnectionStatus = 'CONFIGURED_UNREACHABLE';
+    return 'CONFIGURED_UNREACHABLE';
+  }
+}
+
+export function getCachedConnectionStatus(): BackendConnectionStatus {
+  return cachedConnectionStatus;
+}
+
 async function fetchJson<T>(endpoint: string, options?: RequestInit, isRetry = false): Promise<ApiResponse<T>> {
   if (FORCE_MOCK || (!API_BASE_URL && typeof window === 'undefined')) {
     throw new Error('DEMO_MODE_ACTIVE');
