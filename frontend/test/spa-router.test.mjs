@@ -41,36 +41,54 @@ test('CloudFront SPA Router - rewrites empty URI to /index.html', () => {
   assert.equal(result.uri, '/index.html');
 });
 
-test('CloudFront SPA Router - rewrites top-level SPA routes to /index.html', () => {
-  const routes = ['/dashboard', '/batches', '/recalls', '/suppliers', '/distribution', '/vault', '/audit', '/settings'];
-  for (const route of routes) {
-    const event = createEvent(route);
-    const result = handler(event);
-    assert.equal(result.uri, '/index.html', `Route ${route} should rewrite to /index.html`);
-  }
-});
-
-test('CloudFront SPA Router - rewrites deep nested SPA routes to /index.html', () => {
-  const deepRoutes = [
-    '/batches/BG-2024-8891-ORG',
-    '/recalls/REC-2024-9910',
-    '/distribution/nodes/US-EAST-DC-1',
-    '/suppliers/SUP-1092/certifications'
+test('CloudFront SPA Router - rewrites all valid exact application routes to /index.html', () => {
+  const validRoutes = [
+    '/dashboard',
+    '/batches',
+    '/supply-chain',
+    '/recalls',
+    '/suppliers',
+    '/evidence',
+    '/audit-logs',
+    '/settings'
   ];
-  for (const route of deepRoutes) {
+  for (const route of validRoutes) {
     const event = createEvent(route);
     const result = handler(event);
-    assert.equal(result.uri, '/index.html', `Deep route ${route} should rewrite to /index.html`);
+    assert.equal(result.uri, '/index.html', `Valid route ${route} should rewrite to /index.html`);
   }
 });
 
-test('CloudFront SPA Router - handles trailing slashes for SPA routes', () => {
-  const event = createEvent('/dashboard/');
-  const result = handler(event);
-  assert.equal(result.uri, '/index.html');
+test('CloudFront SPA Router - rewrites dynamic routes with parameters to /index.html', () => {
+  const dynamicRoutes = [
+    '/batches/BG-2024-8891-ORG',
+    '/batches/LOT-2024-001',
+    '/batches/batch_123',
+    '/recalls/REC-2024-9910',
+    '/recalls/REC-001'
+  ];
+  for (const route of dynamicRoutes) {
+    const event = createEvent(route);
+    const result = handler(event);
+    assert.equal(result.uri, '/index.html', `Dynamic route ${route} should rewrite to /index.html`);
+  }
 });
 
-test('CloudFront SPA Router - leaves assets directory paths untouched', () => {
+test('CloudFront SPA Router - handles trailing slashes for valid application routes', () => {
+  const trailingSlashRoutes = [
+    '/dashboard/',
+    '/batches/',
+    '/batches/BG-2024-8891-ORG/',
+    '/recalls/REC-2024-9910/'
+  ];
+  for (const route of trailingSlashRoutes) {
+    const event = createEvent(route);
+    const result = handler(event);
+    assert.equal(result.uri, '/index.html', `Route with trailing slash ${route} should rewrite to /index.html`);
+  }
+});
+
+test('CloudFront SPA Router - preserves static assets directory paths without rewriting', () => {
   const assetPaths = [
     '/assets/index-8u6H-HHB.css',
     '/assets/index-Du-zKfaP.js',
@@ -83,17 +101,38 @@ test('CloudFront SPA Router - leaves assets directory paths untouched', () => {
   }
 });
 
-test('CloudFront SPA Router - leaves files with extensions untouched to preserve S3 404s', () => {
+test('CloudFront SPA Router - preserves requests containing file extensions to maintain native S3 404s', () => {
   const filePaths = [
     '/favicon.ico',
     '/robots.txt',
     '/manifest.json',
     '/images/banner.png',
-    '/missing-chunk.js'
+    '/missing-chunk.js',
+    '/styles.css'
   ];
   for (const filePath of filePaths) {
     const event = createEvent(filePath);
     const result = handler(event);
     assert.equal(result.uri, filePath, `File ${filePath} must not be rewritten`);
+  }
+});
+
+test('CloudFront SPA Router - DOES NOT rewrite unknown or unmapped routes to /index.html', () => {
+  const unknownRoutes = [
+    '/unknown-path',
+    '/admin/login',
+    '/api/v1/batches',
+    '/test-page',
+    '/batches/too/many/nested/levels',
+    '/recalls/REC-1/extra'
+  ];
+  for (const route of unknownRoutes) {
+    const event = createEvent(route);
+    const result = handler(event);
+    assert.equal(
+      result.uri,
+      route,
+      `Unknown route ${route} must NOT be rewritten to /index.html so S3 returns native 404`
+    );
   }
 });

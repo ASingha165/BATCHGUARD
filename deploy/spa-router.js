@@ -3,22 +3,21 @@
  * Runtime: cloudfront-js-1.0 / cloudfront-js-2.0
  * Event Type: viewer-request
  *
- * Rewrites extensionless client-side SPA routes to /index.html while preserving
- * static assets, images, chunks, and files with extensions.
- * This avoids distribution-wide 403/404 error responses that mask missing chunks.
+ * Rewrites only valid React Router application paths to /index.html.
+ * Preserves static assets and file extensions.
+ * Unknown or unmapped paths are passed through unmodified to preserve native 404 responses from S3.
  */
 function handler(event) {
     var request = event.request;
     var uri = request.uri;
 
-    // Check whether the URI is missing or root
+    // Check whether the URI is root or empty
     if (!uri || uri === '' || uri === '/') {
         request.uri = '/index.html';
         return request;
     }
 
-    // Check if the URI is requesting a specific file or asset
-    // Any URI starting with /assets/ or containing a dot in the final path segment is considered a file
+    // Check if the URI is requesting a static asset or contains a file extension
     var segments = uri.split('/');
     var lastSegment = segments[segments.length - 1];
 
@@ -27,9 +26,44 @@ function handler(event) {
         return request;
     }
 
-    // For extensionless client-side SPA routes (e.g. /dashboard, /batches/BG-2024-8891-ORG)
-    // rewrite request URI to /index.html
-    request.uri = '/index.html';
+    // Normalize path by removing trailing slash (unless root)
+    var normalized = uri.replace(/\/+$/, '');
+    if (normalized === '') {
+        normalized = '/';
+    }
+
+    // Valid top-level static application routes defined in App.tsx
+    var exactRoutes = [
+        '/dashboard',
+        '/batches',
+        '/supply-chain',
+        '/recalls',
+        '/suppliers',
+        '/evidence',
+        '/audit-logs',
+        '/settings'
+    ];
+
+    for (var i = 0; i < exactRoutes.length; i++) {
+        if (normalized === exactRoutes[i]) {
+            request.uri = '/index.html';
+            return request;
+        }
+    }
+
+    // Dynamic application routes:
+    // 1. /batches/:batchId (e.g. /batches/BG-2024-8891-ORG)
+    // 2. /recalls/:recallId (e.g. /recalls/REC-2024-9910)
+    var batchMatch = /^\/batches\/[a-zA-Z0-9_\-\:\%]+$/;
+    var recallMatch = /^\/recalls\/[a-zA-Z0-9_\-\:\%]+$/;
+
+    if (batchMatch.test(normalized) || recallMatch.test(normalized)) {
+        request.uri = '/index.html';
+        return request;
+    }
+
+    // Unknown or unmapped routes:
+    // Do NOT silently rewrite to /index.html. Return unmodified so S3 returns true 404.
     return request;
 }
 
