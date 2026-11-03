@@ -187,7 +187,7 @@ export const Header: React.FC<HeaderProps> = ({ currentSection = 'Operations', o
             </button>
 
             <div
-              className="hidden sm:flex items-center gap-space-xs px-space-sm py-1 rounded-full bg-surface-container border border-surface-container-high"
+              className="flex items-center gap-space-xs px-2 sm:px-space-sm py-1 rounded-full bg-surface-container border border-surface-container-high"
               title={
                 connStatus === 'AUTHENTICATED_LIVE'
                   ? 'Connected to live AWS API Gateway with authenticated session'
@@ -195,7 +195,7 @@ export const Header: React.FC<HeaderProps> = ({ currentSection = 'Operations', o
                   ? 'Remote API URL is configured but unreachable'
                   : connStatus === 'BACKEND_UNAVAILABLE'
                   ? 'Remote server returned 5xx error'
-                  : 'Operating in local demonstration mode with simulated data'
+                  : 'Operating in demonstration mode with simulated data'
               }
             >
               <span
@@ -207,14 +207,14 @@ export const Header: React.FC<HeaderProps> = ({ currentSection = 'Operations', o
                     : 'bg-warning'
                 }`}
               />
-              <span className="font-data-mono-sm text-data-mono-sm text-on-surface font-semibold tracking-wider">
+              <span className="font-data-mono-sm text-xs sm:text-data-mono-sm text-on-surface font-semibold tracking-wider">
                 {connStatus === 'AUTHENTICATED_LIVE'
                   ? 'US-EAST PROD (LIVE)'
                   : connStatus === 'CONFIGURED_UNREACHABLE'
                   ? 'API UNREACHABLE'
                   : connStatus === 'BACKEND_UNAVAILABLE'
                   ? 'BACKEND 5XX'
-                  : 'LOCAL DEMO MODE'}
+                  : 'DEMO MODE'}
               </span>
             </div>
 
