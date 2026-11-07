@@ -76,12 +76,12 @@ A complete, high-definition narrated demonstration video was produced to showcas
 
 ### 3. Keyframe Evidence
 Six timestamped keyframe images have been extracted and archived in [`docs/evidence/video/narrated_frames/`](file:///d:/BatchGuard/docs/evidence/video/narrated_frames/):
-- [`scene-1-dashboard.png`](file:///d:/BatchGuard/docs/evidence/video/narrated_frames/scene-1-dashboard.png) (00:00:15) — Command Center with operational metrics and DEMO MODE indicator.
-- [`scene-2-batches.png`](file:///d:/BatchGuard/docs/evidence/video/narrated_frames/scene-2-batches.png) (00:00:36) — Batch Registry showing lot `BATCH-2026-0881` and CTE metadata.
-- [`scene-3-traceability.png`](file:///d:/BatchGuard/docs/evidence/video/narrated_frames/scene-3-traceability.png) (00:00:58) — Traceability graph and KDE Completeness scorecard.
-- [`scene-4-recall-wizard.png`](file:///d:/BatchGuard/docs/evidence/video/narrated_frames/scene-4-recall-wizard.png) (00:01:25) — 4-Step Recall Wizard with blast radius assessment and 2FA gate.
-- [`scene-5-active-recall.png`](file:///d:/BatchGuard/docs/evidence/video/narrated_frames/scene-5-active-recall.png) (00:02:00) — Active Recall Command Center showing real-time facility acknowledgements.
-- [`scene-6-architecture-conclusion.png`](file:///d:/BatchGuard/docs/evidence/video/narrated_frames/scene-6-architecture-conclusion.png) (00:02:35) — System Architecture, audit hash chain, and cloud disclosures.
+- [`scene-1-intro-00-00-10.png`](file:///d:/BatchGuard/docs/evidence/video/narrated_frames/scene-1-intro-00-00-10.png) (00:00:10) — Command Center with operational metrics and DEMO MODE indicator.
+- [`scene-2-dashboard-00-00-35.png`](file:///d:/BatchGuard/docs/evidence/video/narrated_frames/scene-2-dashboard-00-00-35.png) (00:00:35) — Batch Registry showing lot `BATCH-2026-0881` and CTE metadata.
+- [`scene-3-provenance-00-00-58.png`](file:///d:/BatchGuard/docs/evidence/video/narrated_frames/scene-3-provenance-00-00-58.png) (00:00:58) — Traceability graph and KDE Completeness scorecard.
+- [`scene-4-recall-wizard-00-01-30.png`](file:///d:/BatchGuard/docs/evidence/video/narrated_frames/scene-4-recall-wizard-00-01-30.png) (00:01:30) — 4-Step Recall Wizard with blast radius assessment and 2FA gate.
+- [`scene-5-audit-ledger-00-02-05.png`](file:///d:/BatchGuard/docs/evidence/video/narrated_frames/scene-5-audit-ledger-00-02-05.png) (00:02:05) — Active Recall Command Center showing real-time facility acknowledgements.
+- [`scene-6-closing-architecture-00-02-35.png`](file:///d:/BatchGuard/docs/evidence/video/narrated_frames/scene-6-closing-architecture-00-02-35.png) (00:02:35) — System Architecture, audit hash chain, and cloud disclosures.
 
 ### 4. Explicit Disclosures
 The video prominently displays and speaks the required architectural disclosures:
