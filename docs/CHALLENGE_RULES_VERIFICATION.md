@@ -54,12 +54,19 @@ To maintain absolute technical and competition integrity, each requirement is ca
   * *Status:* **UNVERIFIED** (challenge-specific rubric not published; follows platform convention).
 * **Audio & Voiceover Requirement:** Whether human voiceover is strictly mandatory or if silent/captioned walkthroughs are accepted.
   * *Status:* **UNVERIFIED**.
-  * *BatchGuard Posture:* We provide an automated 47-second **Silent Product Interaction Preview** (`docs/evidence/video/batchguard-demo-walkthrough.webm`) to demonstrate UI flows, while providing a complete spoken script and production plan in `docs/FINAL_VIDEO_PRODUCTION_PLAN.md` and `docs/DEMO_SCRIPT.md` should narrated recording be performed.
+  * *BatchGuard Compliance:* We provide both:
+    1. A **Full Narrated Demonstration Video** (`docs/evidence/video/batchguard-final-narrated-demo.mp4`, **2 minutes 51 seconds**, 1080p Full HD, verified neural AAC narration) covering all 6 mandated scenes with explicit deployment disclosures.
+    2. A 47-second **Silent Product Interaction Preview** (`docs/evidence/video/batchguard-demo-walkthrough.webm`) showing rapid UI flows.
 
 ### 3.5 AI-Assisted Development Policy
 * **Official AI Tooling Rules:** Whether explicit AI disclosures are mandatory in the article body.
   * *Status:* **UNVERIFIED** for this specific weekend challenge (platform broadly welcomes generative AI coding assistants like Amazon Q Developer).
   * *BatchGuard Posture:* Full attribution and disclosure provided in documentation and article draft.
+
+### 3.6 Official Judging Rubric & Evaluation Weights
+* **Scoring Dimensions:** Explicit breakdown between Architecture & IaC Quality, Code Correctness & Test Coverage, UI/UX Completeness, and Live Cloud Execution.
+  * *Status:* **UNVERIFIED**. Exact challenge weighting has not been officially released.
+  * *BatchGuard Posture:* We optimize for maximum rigor across all controllable dimensions: complete SAM specification, 161 passing automated tests, live Vercel demonstration, and an automated deployment runbook for cloud evaluation.
 
 ---
 
@@ -70,10 +77,11 @@ To maintain absolute technical and competition integrity, each requirement is ca
 | **1. Submission Article Draft** | ~1,250 words, 10 sections | `docs/BUILDER_CENTER_ARTICLE_DRAFT.md` | **READY FOR REVIEW** |
 | **2. Public Repository** | GitHub (`ASingha165/BATCHGUARD`) | Workspace root (`main` branch) | **READY** |
 | **3. Live Application URL** | Publicly accessible web link | `https://batchguard-pi.vercel.app/dashboard` | **VERIFIED LIVE (32/32 tests passing)** |
-| **4. Product Preview Video** | Silent interaction preview (47.04s, 720p VP9) | `docs/evidence/video/batchguard-demo-walkthrough.webm` | **VERIFIED (8.65 MB)** |
-| **5. Narrated Demo Script** | Complete spoken narration plan | `docs/FINAL_VIDEO_PRODUCTION_PLAN.md` | **DOCUMENTED** |
-| **6. Infrastructure as Code** | AWS SAM template (48 resources, 20 Lambdas) | `template.yaml` | **VERIFIED (`sam validate --lint`)** |
-| **7. Deployment Runbook** | Turnkey provisioning runbook | `docs/AWS_DEPLOYMENT_RUNBOOK.md` | **DOCUMENTED** |
+| **4. Full Narrated Demo Video** | 1080p Full HD MP4 with verified AAC audio (2:51.01) | `docs/evidence/video/batchguard-final-narrated-demo.mp4` | **VERIFIED (8.40 MB)** |
+| **5. Product Preview Video** | Silent interaction preview (47.04s, 720p VP9) | `docs/evidence/video/batchguard-demo-walkthrough.webm` | **VERIFIED (8.65 MB)** |
+| **6. Narrated Demo Script** | Complete word-for-word spoken narration plan | `docs/evidence/video/FINAL_VOICEOVER_SCRIPT.md` | **DOCUMENTED** |
+| **7. Infrastructure as Code** | AWS SAM template (48 resources, 20 Lambdas) | `template.yaml` | **VERIFIED (`sam validate --lint`)** |
+| **8. Deployment Runbook** | Turnkey provisioning runbook | `docs/AWS_DEPLOYMENT_RUNBOOK.md` | **DOCUMENTED** |
 
 ---
 

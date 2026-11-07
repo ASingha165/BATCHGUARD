@@ -5,7 +5,7 @@
 > **Author:** Ankit Singha ([@ASingha165](https://github.com/ASingha165))  
 > **Repository:** [github.com/ASingha165/BATCHGUARD](https://github.com/ASingha165/BATCHGUARD)  
 > **Live Interactive Demo:** [batchguard-pi.vercel.app/dashboard](https://batchguard-pi.vercel.app/dashboard)  
-> **Media:** 47-second silent product interaction preview (with documented voiceover script in repo)  
+> **Demonstration Video:** 2-minute 51-second narrated 1080p walkthrough (`batchguard-final-narrated-demo.mp4`) with verified audio narration  
 
 ---
 
@@ -142,9 +142,10 @@ BatchGuard has been subjected to rigorous automated verification across every la
 * **Backend Pytest Suite:** **108 / 108 tests passing** simulating DynamoDB single-table operations, API Gateway payloads, Step Functions worker idempotency, and hash chain math using `moto` and LocalStack mocks.
 * **Infrastructure Validation:** AWS SAM template (`template.yaml`, 48 resources) verified clean via `sam validate --lint`.
 
-### Demonstration Media & Video Preview:
-* **Silent Product Interaction Preview (47.04s):** Captured in high-definition 720p VP9 format (`docs/evidence/video/batchguard-demo-walkthrough.webm`), showcasing the responsive Google Stitch-inspired UI, batch lineage explorer, blast radius calculation, and simulation indicators.
-* **Narrated Video Script:** A complete, timed spoken walkthrough script and production runbook are documented in `docs/FINAL_VIDEO_PRODUCTION_PLAN.md` and `docs/DEMO_SCRIPT.md`.
+### Demonstration Media & Video Evidence:
+* **Full Narrated Demonstration Video (2:51.01):** Recorded in 1080p Full HD (`docs/evidence/video/batchguard-final-narrated-demo.mp4`, 8.40 MB) with synchronized spoken narration across all 6 scenes, explicitly presenting the live interface, telemetry, one-click recall wizard, and architecture disclosures.
+* **Silent Product Interaction Preview (47.04s):** Rapid visual UI walkthrough (`docs/evidence/video/batchguard-demo-walkthrough.webm`, 8.65 MB).
+* **Word-for-Word Voiceover Script:** Documented in [`docs/evidence/video/FINAL_VOICEOVER_SCRIPT.md`](https://github.com/ASingha165/BATCHGUARD/blob/main/docs/evidence/video/FINAL_VOICEOVER_SCRIPT.md).
 
 ---
 
@@ -177,7 +178,8 @@ Building BatchGuard for the AWS Weekend Challenge yielded three core architectur
 * **Architecture Documentation:** [docs/architecture.md](https://github.com/ASingha165/BATCHGUARD/blob/main/docs/architecture.md)
 * **Database Schema Specification:** [docs/database-schema.md](https://github.com/ASingha165/BATCHGUARD/blob/main/docs/database-schema.md)
 * **Step Functions Definition:** [statemachine/recall_orchestrator.asl.json](https://github.com/ASingha165/BATCHGUARD/blob/main/statemachine/recall_orchestrator.asl.json)
-* **Demonstration Video Preview:** [docs/evidence/video/](https://github.com/ASingha165/BATCHGUARD/tree/main/docs/evidence/video)
+* **Narrated Demonstration Video:** [docs/evidence/video/batchguard-final-narrated-demo.mp4](https://github.com/ASingha165/BATCHGUARD/blob/main/docs/evidence/video/batchguard-final-narrated-demo.mp4)
+* **Demonstration Video Assets:** [docs/evidence/video/](https://github.com/ASingha165/BATCHGUARD/tree/main/docs/evidence/video)
 
 ---
 
