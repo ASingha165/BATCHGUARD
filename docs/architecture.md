@@ -1,275 +1,310 @@
-# BatchGuard Architecture & System Design
+# BatchGuard — System Architecture Specification
 
-## 1. High-Level Architectural Overview
-
-BatchGuard is architected as a decoupled, multi-tier, event-driven serverless cloud platform on AWS. The design prioritizes high availability, minimal operational overhead, robust security boundaries, and near-instantaneous recall containment.
-
-### Architecture Topology
-
-```
-+--------------------------------------------------------------------------+
-|                            CLIENT TIER                                   |
-|   React 18 + TypeScript SPA (Vite, Tailwind CSS, Google Stitch Tokens)   |
-|   Static Assets hosted via Amazon S3 / CloudFront Distribution           |
-+-----------------------------------+--------------------------------------+
-                                    | HTTPS / TLS 1.3
-                                    v
-+--------------------------------------------------------------------------+
-|                           API INGRESS TIER                               |
-|   Amazon API Gateway (Regional REST API)                                 |
-|   - Request Validation (JSON Schema)                                     |
-|   - CORS Configuration                                                   |
-|   - Throttling & Rate Limiting                                           |
-+-----------------------------------+--------------------------------------+
-                                    |
-          +-------------------------+-------------------------+
-          |                         |                         |
-          v                         v                         v
-+-------------------+     +-------------------+     +-------------------+
-|  Batch Ingress    |     |  Recall Ingress   |     |  Evidence Vault   |
-|  Lambda Function  |     |  Lambda Function  |     |  Lambda Function  |
-|  (Python 3.12)    |     |  (Python 3.12)    |     |  (Python 3.12)    |
-+---------+---------+     +---------+---------+     +---------+---------+
-          |                         |                         |
-          |                         v                         | Pre-signed S3
-          |               +-------------------+               | PUT/GET URLs
-          |               | AWS Step Function |               v
-          |               | Recall Machine    |     +-------------------+
-          |               +---------+---------+     | Amazon S3 Bucket  |
-          |                         |               | Evidence Vault    |
-          |                         v               | (Encrypted KMS)   |
-          |               +-------------------+     +-------------------+
-          |               | Recall Worker     |
-          |               | Lambda Pool       |
-          |               +----+---------+----+
-          |                    |         |
-          v                    v         v
-+-----------------------------------+  +--------------------------------+
-|       PERSISTENCE LAYER           |  |       MESSAGING TIER           |
-| Amazon DynamoDB Single-Table      |  | Amazon SNS (Recall Alerts)     |
-| BatchGuard-Main (On-Demand)       |  | Fan-out SMS, Email, Webhooks   |
-+-----------------------------------+  +--------------------------------+
-```
+> **Target Architecture:** Event-Driven Serverless on AWS  
+> **Demonstration Architecture:** Single-Page Application (SPA) on Vercel (Demo Mode)  
+> **Repository:** `https://github.com/ASingha165/BATCHGUARD`  
+> **Master Directives:** [`AGENTS.md`](../AGENTS.md)
 
 ---
 
-## 2. Serverless Component Breakdown
+## 1. System Overview
 
-### 2.1 Amazon API Gateway
-* Serves as the single secure entry point (`/v1/*`).
-* Configured with strict CORS headers allowing authenticated web origins.
-* Validates incoming request payloads using OpenAPI schema definitions before invoking compute.
-* Maps standardized HTTP status codes (200, 201, 400, 403, 404, 409, 500).
+**BatchGuard** is an event-driven food supply-chain traceability and recall intelligence platform. It provides end-to-end chain-of-custody tracking, critical tracking event (CTE) capture, cold-chain telemetry visibility, and signature **One-Click Recall Orchestration** for food manufacturers, growers, distribution centers (DCs), and retail operators.
 
-### 2.2 AWS Lambda Compute Layer
-* **Runtime:** Python 3.12 running with ARM64 (Graviton2) architecture for optimal cost and performance.
-* **Separation of Functions:**
-  * `batch_service`: Handles batch registration, lookup, filtering, and upstream ingredient lineage.
-  * `recall_service`: Evaluates blast radius, accepts recall initiation commands, queries active recall status, and processes acknowledgements.
-  * `supplier_service`: Manages verified vendor directory, facility codes, and compliance status.
-  * `distribution_service`: Tracks node custody handoffs, warehouse receipts, and cold-chain temperature telemetry logs.
-  * `evidence_service`: Generates short-lived, pre-signed S3 upload URLs with content-type and size constraints, avoiding binary transmission through Lambda.
-  * `audit_service`: Read-only queries against immutable audit trail records.
-
-### 2.3 AWS Step Functions — Recall Orchestration State Machine
-The signature feature of BatchGuard is its **One-Click Recall Orchestration**. Because a recall involves multiple asynchronous and transactional operations (locking inventory, broadcasting emergency communications, persisting containment records), it is orchestrated via an **AWS Step Functions Express/Standard Workflow**:
-
-```
- [Start: Recall Requested]
-           |
-           v
- [Validate Confirmation & 2FA Token]
-           |
-           v
- [Calculate Downstream Blast Radius]
- (Traverse DynamoDB distribution records)
-           |
-           v
- [Atomic Batch Quarantine Update]
- (Update Batch status to QUARANTINED in DynamoDB)
-           |
-           v
- [Parallel Execution Branch]
-    +--------------------------------+--------------------------------+
-    |                                |                                |
-    v                                v                                v
-[Lock Node Allocations]     [Broadcast SNS Alert]      [Create Audit Entry]
-(Write ACK records per DC)  (Emergency fan-out email/  (Append immutable log)
-                            SMS/Webhook)
-    |                                |                                |
-    +--------------------------------+--------------------------------+
-           |
-           v
- [Complete: Return Execution Summary]
-```
-
-### 2.4 Amazon DynamoDB (Single-Table Architecture)
-* Single table `BatchGuard-Main` handles all entities using carefully planned Partition Keys (`PK`), Sort Keys (`SK`), and two Global Secondary Indexes (`GSI1`, `GSI2`).
-* Zero cross-table joins; queries execute within single-digit milliseconds.
-* Point-In-Time Recovery (PITR) enabled for production resilience.
-
-### 2.5 Amazon S3 Evidence Vault
-* Dedicated bucket for compliance documents, laboratory test certificates, and chain-of-custody bills of lading.
-* Encrypted at rest using SSE-S3 or AWS KMS.
-* Public access strictly blocked at bucket and account levels (`BlockPublicAcls`, `IgnorePublicAcls`, `BlockPublicPolicy`, `RestrictPublicBuckets`).
-* Ingestion and retrieval handled purely through pre-signed URLs with maximum 15-minute expiration.
-
-### 2.6 Amazon SNS Notification Fabric
-* Dedicated Topic `batchguard-recall-notifications`.
-* Fan-out subscribers include:
-  * Quality Assurance notification emails.
-  * Facility manager emergency SMS endpoints.
-  * Downstream enterprise ERP / WMS webhooks for automated EDI 940 hold generation.
+### Core Problems Solved:
+1. **Recall Latency:** Traditional food recalls average 3 to 14 days to identify affected facilities, allowing contaminated lots to reach consumer hands. BatchGuard models blast radius in under 2 seconds.
+2. **Traceability Disconnects:** Upstream ingredient lots are frequently disconnected from downstream distribution nodes. BatchGuard links raw harvests to finished lots via directed acyclic genealogy graphs.
+3. **Execution Gaps:** Facilities receive disjointed email or telephone alerts. BatchGuard coordinates automated hold orders (`EDI 940` equivalent), POS register scan-blocks, in-transit truck diversions, and facility quarantine tracking.
+4. **Audit Integrity:** Regulatory scrutiny requires verifiable chain of custody. BatchGuard commits every critical tracking event and recall action to an append-only, content-addressable SHA-256 hash chain.
 
 ---
 
-## 3. Security & Compliance Architecture
+## 2. Dual Deployment Architecture: Demonstrated vs. Production
 
-1. **Principle of Least Privilege:**
-   * Every Lambda has an isolated IAM role with explicit actions (`dynamodb:GetItem`, `dynamodb:PutItem`, `s3:PutObject` for specific ARNs only).
-   * No wildcard `*` resource permissions on data-bearing resources.
-2. **Idempotency in Emergency Operations:**
-   * Recall initiation generates an `idempotencyKey` derived from `SHA256(batchId + incidentTimestamp + hazardClass)`.
-   * Re-sending an identical command returns the existing recall execution without duplicating alert broadcasts or duplicate database writes.
-3. **Data Protection in Transit and at Rest:**
-   * All API communication enforces TLS 1.3.
-   * DynamoDB and S3 enforce encryption at rest with AWS-managed keys.
+```mermaid
+flowchart TD
+    subgraph DeployedDemo["Currently Deployed Demonstration (Live on Vercel)"]
+        Browser[Client Browser]
+        VercelEdge["Vercel Global Edge (HTTPS / SPA Routing)"]
+        ReactApp["React 18 + Vite + TypeScript (DEMO MODE)"]
+        MockData["Simulated Mock Data Engine (0ms Latency Fallback)"]
+        
+        Browser -->|HTTPS| VercelEdge
+        VercelEdge --> ReactApp
+        ReactApp --> MockData
+    end
 
+    subgraph ProposedAWS["Implemented & Validated Serverless Architecture (AWS SAM)"]
+        Client[Client Application]
+        APIGW[Amazon API Gateway REST API]
+        CognitoAuthorizer[Amazon Cognito User Pool + MFA]
+        
+        subgraph ComputeLayer[AWS Lambda Handlers - Python 3.12 ARM64]
+            H_Batch[Batch Handler]
+            H_Recall[Recall Handler]
+            H_Supplier[Supplier Handler]
+            H_Dist[Distribution Handler]
+            H_Evidence[Evidence Vault Handler]
+            H_Audit[Audit Log Handler]
+        end
+        
+        subgraph StorageLayer[Persistence & Document Store]
+            DDB[(Amazon DynamoDB Single-Table)]
+            S3[(Amazon S3 Evidence Vault SSE-S3)]
+            SNS[Amazon SNS Emergency Topic]
+        end
+        
+        subgraph WorkflowEngine[Orchestration Engine]
+            SFN[AWS Step Functions Recall State Machine]
+            Workers[Worker Lambdas]
+        end
 
----
-
-## 4. Identity & Authentication Architecture (Amazon Cognito)
-
-BatchGuard establishes a zero-trust authentication boundary using **Amazon Cognito User Pools**:
-
-```
-+----------------+      1. Authenticate (SRP / MFA)      +---------------------+
-|   Web Client   | -------------------------------------> | Amazon Cognito Pool |
-|   (React SPA)  | <------------------------------------- | (TOTP / SMS MFA)    |
-+-------+--------+       2. JWT Tokens (ID, Access)       +---------------------+
-        |
-        | 3. HTTPS + Authorization: Bearer <ID-Token>
-        v
-+-----------------------+ 4. Validate JWT Claims          +---------------------+
-|  Amazon API Gateway   | ------------------------------> | Lambda Context Auth |
-|  (Cognito Authorizer) |   Injects: sub, email,          | requestContext.     |
-+-----------+-----------+   custom:org_id, groups         | authorizer.claims   |
-            |                                             +---------------------+
-            v
-+-----------------------+
-|  AWS Lambda Handlers  | 5. Enforces AuthContext.org_id
-|  (e.g. BatchHandler)  |    Rejects cross-tenant access attempts
-+-----------------------+
+        Client -->|REST API over HTTPS| APIGW
+        APIGW -->|Cognito JWT Bearer| CognitoAuthorizer
+        APIGW --> ComputeLayer
+        ComputeLayer --> DDB
+        ComputeLayer -->|Pre-signed PUT/GET| S3
+        H_Recall -->|StartExecution| SFN
+        SFN --> Workers
+        Workers --> DDB
+        Workers --> SNS
+    end
 ```
 
-### Identity Attributes & Claims Mapping:
-* **Tenant Isolation:** `custom:org_id` attribute stores the organization UUID (`ORG#<orgId>`). Every Lambda handler extracts this attribute directly from `requestContext.authorizer.claims` and strictly scopes DynamoDB queries.
-* **Role-Based Access Control (RBAC):** Cognito Groups (`ComplianceOfficer`, `QualityManager`, `LogisticsOperator`, `Viewer`) map to granular execution permissions. Critical operations (e.g. `POST /v1/recalls/initiate`) strictly mandate `ComplianceOfficer` or `Admin` membership via `require_role()`.
-* **Multi-Factor Authentication (MFA):** Enforces Software Token TOTP (Google Authenticator, Microsoft Authenticator) for compliance administrators initiating recalls.
+> [!IMPORTANT]
+> * **Live Demonstration:** The frontend is publicly accessible at [https://batchguard-pi.vercel.app/dashboard](https://batchguard-pi.vercel.app/dashboard) in **DEMO MODE**. It runs 100% in-browser with zero active cloud dependencies.
+> * **AWS Backend Readiness:** The full AWS serverless backend is implemented in `backend/` and `template.yaml`, verified by 108 pytest test cases and SAM linting, but is not provisioned on AWS due to an organizational Service Control Policy (SCP `p-ifuj16mo`) restricting resource creation.
 
 ---
 
-## 5. Audit Integrity & Non-Repudiation Architecture
+## 3. Frontend Architecture
 
-BatchGuard distinguishes between three tiers of audit record integrity:
+The frontend is constructed using React 18, TypeScript, and Vite, strictly following Google Stitch design tokens:
 
-| Integrity Tier | Mechanism | Threat Protected Against | Limitations |
-| :--- | :--- | :--- | :--- |
-| **Tier 1: Hash-Based Integrity Checking** | SHA-256 signature calculated over canonicalized JSON payload (`"cryptographicSignature": "0x..."`) | Detects accidental data corruption or single-attribute tampering | An attacker with DynamoDB write privileges could recompute the SHA-256 hash and update the item |
-| **Tier 2: Append-Only Application Logic** | DynamoDB `PutItem` with `attribute_not_exists(PK) AND attribute_not_exists(SK)` | Prevents application-level overwriting or deletion via API Gateway | Direct console or administrative IAM access can still alter rows |
-| **Tier 3: Tamper-Resistant Storage (WORM)** | **Production Target:** DynamoDB Streams $\to$ Amazon Kinesis Data Firehose $\to$ Amazon S3 Object Lock in **Compliance Mode** | Fully prevents deletion or modification by any IAM role or AWS Root account during retention period | Requires S3 Object Lock bucket provisioning and stream configuration |
-
-> [!NOTE]
-> A SHA-256 digest stored inside a DynamoDB row provides **tamper-evidence**, not tamper-resistance. True regulatory immutability (e.g. FDA 21 CFR Part 11 / FSMA 204) is achieved in Tier 3 via S3 Object Lock in Compliance Mode.
+* **Design Palette:** Deep Forest Green (`#14532D`), Emerald (`#10B981`), Amber Warning (`#F59E0B`), and Critical Alert (`#DC2626`).
+* **Typography:** `Inter` for interface copy, `JetBrains Mono` for lot numbers, GTINs, hashes, and timestamps, with tabular figures (`tnum`) for KPIs.
+* **Layout Structure:** Fixed 260px operational side rail with responsive collapsing, sticky top header with global search, notifications drawer, and persistent `DEMO MODE` pill.
+* **State & Data Ingress:** Clean typed service layer (`frontend/src/services/api.ts`). When `VITE_API_BASE_URL` is unconfigured, the client immediately switches to the in-memory mock engine (`frontend/src/services/mockData.ts`), ensuring 0ms latency with zero failing external HTTP requests.
 
 ---
 
-## 6. S3 Evidence Vault Security Architecture
+## 4. AWS Serverless Backend Architecture
 
-To securely ingest Certificate of Analysis (COA) documents and microbiological lab assay PDFs:
+The implemented backend follows an event-driven serverless architecture defined in [`template.yaml`](../template.yaml):
 
-1. **Pre-Signed POST Policy Enforcement:** Rather than open `put_object` URLs (which cannot restrict upload size at the S3 edge), BatchGuard implements S3 Pre-Signed POST policies containing cryptographically signed conditions:
-   ```json
-   [
-     ["content-length-range", 1, 52428800],
-     {"Content-Type": "application/pdf"},
-     ["starts-with", "$key", "evidence/ORG-APEX-GLOBAL/"]
-   ]
-   ```
-2. **Key Prefix Isolation:** Object keys follow `evidence/{orgId}/{batchId}/{docId}_{sanitizedFileName}`, preventing cross-tenant file writes or filename collision attacks.
-3. **Restricted Egress:** Direct public reads are blocked (`PublicAccessBlockConfiguration: true`). Document downloads are mediated through time-limited (300-second) pre-signed GET URLs generated only after verifying the caller's tenant boundary.
+```mermaid
+flowchart LR
+    subgraph Ingress["API & Auth Layer"]
+        R_API["API Gateway REST API (/v1)"]
+        C_POOL["Cognito User Pool (TOTP 2FA)"]
+    end
 
----
+    subgraph Handlers["Compute Handlers (Python 3.12 ARM64)"]
+        H1["batch_handler.py"]
+        H2["recall_handler.py"]
+        H3["supplier_handler.py"]
+        H4["distribution_handler.py"]
+        H5["evidence_handler.py"]
+        H6["audit_handler.py"]
+    end
 
-## 7. Comprehensive Serverless Cost Audit
+    subgraph StateMachine["AWS Step Functions (recall_orchestrator.asl.json)"]
+        S1[Validate Request] --> S2[Calculate Blast Radius]
+        S2 --> S3[Evaluate Recall Risk]
+        S3 --> S4[AwaitApproval .waitForTaskToken]
+        S4 --> S5{Approved?}
+        S5 -- Yes --> S6[Create Quarantine Tasks]
+        S6 --> S7[Identify Carrier Intercepts]
+        S7 --> S8[Dispatch Notifications]
+        S8 --> S9[Track Acknowledgements]
+        S9 --> S10[Record Audit Entry]
+        S10 --> S11[Finalize Recall & Release Lock]
+        S5 -- No --> S12[Handle Rejection]
+    end
 
-### Resource Billing Models:
+    subgraph Data["Persistence & Integration"]
+        DDB[("DynamoDB (Single-Table)")]
+        S3[("S3 Evidence Vault")]
+        SNS["Amazon SNS"]
+    end
 
-| Service | Billing Mode | Free Tier Coverage | Real Cost at True Idle | Real Cost at Low Volume (50k req/mo) |
-| :--- | :--- | :--- | :--- | :--- |
-| **Amazon DynamoDB** | `PAY_PER_REQUEST` | 25 GB storage free | \$0.01 – \$0.02 / mo (PITR minimums) | ~\$0.08 / mo |
-| **AWS Lambda** | Arm64 Pay-per-use | 1M requests & 400k GB-sec free | \$0.00 / mo | \$0.00 (within Free Tier) |
-| **Amazon API Gateway** | Pay-per-request | 1M API calls (12 mos Free Tier) | \$0.00 / mo | ~\$0.18 / mo |
-| **Amazon S3** | Standard Tier | 5 GB storage, 2k PUT, 20k GET free | \$0.00 / mo | ~\$0.05 / mo |
-| **AWS Step Functions** | Standard Workflows | 4,000 state transitions free | \$0.00 / mo | \$0.00 (within Free Tier) |
-| **Amazon SNS** | Pay-per-notification | 1M requests, 100k HTTP free | \$0.00 / mo | ~\$0.02 / mo |
-| **Amazon CloudWatch** | Ingestion & Storage | 5 GB ingestion & 5 GB storage free | \$0.01 – \$0.05 / mo (metric baselines) | ~\$0.15 / mo (with 14-day retention) |
-| **Amazon Cognito** | Monthly Active Users | 50,000 MAU free | \$0.00 / mo | \$0.00 (within Free Tier) |
-
-* **Estimated True Idle Cost:** **\$0.02 – \$0.07 / month** (attributable to DynamoDB PITR base metadata and CloudWatch log baseline alarms; never strictly \$0.00).
-* **Estimated Low-Volume Cost:** **\$0.35 – \$0.65 / month** (well within standard AWS \$300 promotional credit budgets).
-
----
-
-## 8. Traceability & Blast Radius Intelligence Architecture
-
-### 8.1 Engine Subsystem Structure
-The Traceability Engine (`backend/services/traceability_engine.py`) operates as a decoupled computational module consumed by both the Batch API and the Recall Operations Wizard:
-
-```
-[ API Handler: /batches/{id}/traceability ]     [ Recall Wizard Step 3: assess-blast-radius ]
-                       │                                             │
-                       ▼                                             ▼
-       ┌─────────────────────────────────────────────────────────────────────┐
-       │                 Traceability Intelligence Engine                    │
-       │                                                                     │
-       │  ┌───────────────────────┐         ┌─────────────────────────────┐  │
-       │  │ Upstream Lineage BFS  │         │ Downstream Forward Tracking │  │
-       │  │ (Max Depth 10, Cycle  │         │ (Facility Deduplication &   │  │
-       │  │  Detection & Sever)   │         │  Unit Balance Aggregation)  │  │
-       │  └───────────┬───────────┘         └──────────────┬──────────────┘  │
-       │              │                                    │                 │
-       │              ▼                                    ▼                 │
-       │  ┌───────────────────────────────────────────────────────────────┐  │
-       │  │      KDE Traceability Completeness & Confidence Scoring       │  │
-       │  │      (6 Dimensions: Origin, Supplier, Lab, CoC, POC, Balance) │  │
-       │  └───────────────────────────────┬───────────────────────────────┘  │
-       │                                  │                                  │
-       │                                  ▼                                  │
-       │  ┌───────────────────────────────────────────────────────────────┐  │
-       │  │        Blast Radius Assessment & Risk Quantification          │  │
-       │  │   (Distinguishes Known Remaining vs Unconfirmed Inventory)    │  │
-       │  └───────────────────────────────────────────────────────────────┘  │
-       └──────────────────────────────────┬──────────────────────────────────┘
-                                          │
-                                          ▼
-                         [ DynamoDB Single-Table Store ]
+    R_API --> C_POOL
+    R_API --> Handlers
+    Handlers --> DDB
+    Handlers --> S3
+    H2 --> StateMachine
+    StateMachine --> DDB
+    StateMachine --> SNS
 ```
 
-### 8.2 Inventory Veracity Principle
-In high-consequence recalls, assuming missing distribution records represent zero risk introduces catastrophic safety blindspots. The engine enforces the **Inventory Veracity Invariant**:
-$$\text{Unconfirmed Stock} = \max\left(0, \text{Initial Units} - \sum (\text{Remaining} + \text{Sold})\right)$$
-If records do not account for all manufactured units, `unconfirmedUnits` is explicitly surfaced and highlighted in warning indicators.
+### Serverless Component Breakdown:
+1. **Amazon API Gateway:** Exposes 16 RESTful routes across batches, recalls, suppliers, logistics, evidence, and audit logs with CORS configuration and Cognito JWT authorizers.
+2. **AWS Lambda (Python 3.12 ARM64):** 20 modular functions defined in `template.yaml`, divided into 7 HTTP API handlers (`backend/handlers/`) and 13 Step Functions task workers (`backend/workers/`).
+3. **Amazon DynamoDB (Single-Table):** Houses all application entities with Partition Key (`PK`), Sort Key (`SK`), and two Global Secondary Indexes (`GSI1`, `GSI2`) supporting sub-10ms queries.
+4. **AWS Step Functions Standard Workflow:** Coordinates multi-stage recall containment with human approval gates, bounded retries, and atomic lock release.
+5. **Amazon S3 Evidence Vault:** Encrypted compliance store (`SSE-S3` / KMS) using short-lived (15-minute) pre-signed PUT and GET URLs.
+6. **Amazon SNS:** High-priority fan-out alert topic dispatching emergency hold notices to facility managers and dispatchers.
 
 ---
 
-## 9. Step Functions Serverless Recall Orchestration
+## 5. Traceability Engine & Lineage Traversal
 
-### 9.1 Standard Workflow & Human Approval Gate
-Recall execution uses AWS Step Functions Standard Workflows (`statemachine/recall_orchestrator.asl.json`).
-* **Non-Blocking Callback:** The `AwaitRecallApproval` state utilizes `.waitForTaskToken`, pausing state machine execution and storing the token in DynamoDB.
-* **Server-Side Authorization:** Officers authorize or abort the incident via `POST /v1/recalls/{recallId}/approve` or `/reject`, requiring `COMPLIANCE_OFFICER` role. Resumption is triggered via `send_task_success`.
-* **Configurable Timeout:** Bounded by an 86,400s timeout. Expired timeouts transition to `HandleApprovalTimeout` and mark the incident `FAILED` (never auto-approving).
-* **Concurrency Locking:** Sub-second duplicate initiations are prevented by a DynamoDB conditional write lock (`ACTIVE_RECALL#<batchId>`).
+The traceability engine (`backend/services/traceability_service.py`) operates under strict mathematical and supply-chain invariants:
 
+```mermaid
+graph TD
+    FarmA[Farm A: Harvest Lot H-101] -->|Raw Ingredient| Mill[Processing Plant: Wash & Pack]
+    FarmB[Farm B: Harvest Lot H-204] -->|Raw Ingredient| Mill
+    Mill -->|Output Finished Batch| FG[Finished Lot: BG-2024-8891-ORG]
+    
+    FG -->|Consignment 1| DC1[Logistics Hub 01 - Newark, NJ]
+    FG -->|Consignment 2| Carrier[ColdRoute Fleet Carrier #204]
+    
+    DC1 -->|Store Allocation| R1[Retail Store 101]
+    DC1 -->|Store Allocation| R2[Retail Store 102]
+    Carrier -->|In-Transit Line Haul| DC2[Midwest Cold Storage DC-4]
+```
 
+### Algorithmic Invariants:
+1. **Backward Lineage Traversal (BFS):**
+   * Explores upstream parent ingredient lots up to a maximum depth of 10 levels.
+   * Circular ancestor references are detected via path tracking, flagged (`cycleDetected=True`), recorded as an audit warning, and safely severed to prevent infinite execution.
+2. **Forward Tracking & Blast Radius Isolation:**
+   * Downstream consignments are traversed from manufacturer to transit carriers, distribution centers, and retail endpoints.
+   * Multiple shipments to the same physical facility are deduplicated into an aggregated node record with total units allocated.
+   * Missing, unconfirmed, or in-transit stock is never assumed to be zero; discrepancies are reported as `unconfirmedUnits`.
+3. **KDE Traceability Completeness Scoring:**
+   * Evaluated across 6 weighted dimensions: Origin & Harvest (20%), Supplier Verification (15%), Lab Evidence (20%), Chain of Custody (15%), Delivery Timestamps (15%), and Inventory Balance (15%).
+   * Categorized into HIGH ($\ge 90\%$), MEDIUM ($70\text{--}89\%$), and LOW ($< 70\%$).
+
+---
+
+## 6. One-Click Recall Orchestration & Concurrency Directives
+
+Recall orchestration represents BatchGuard's signature capability. Initiating a recall triggers an automated 4-step wizard culminating in AWS Step Functions execution:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Officer as Compliance Officer
+    participant UI as BatchGuard Frontend
+    participant API as API Gateway / Recall Handler
+    participant DDB as DynamoDB
+    participant SFN as Step Functions State Machine
+    participant Workers as Task Worker Lambdas
+    participant SNS as Amazon SNS
+    participant DCs as Facilities / Carriers / Retailers
+
+    Officer->>UI: Select Lot, Classify Hazard, Review Blast Radius
+    Officer->>UI: Enter 2FA OTP & Confirmation Phrase
+    UI->>API: POST /v1/recalls/initiate (with Idempotency Token)
+    API->>DDB: Conditional Put: ACTIVE_RECALL#<batchId> (Mutual Exclusion)
+    API->>SFN: StartExecution (RecallOrchestrator)
+    API-->>UI: 202 Accepted (Incident Logged & Workflow Running)
+    
+    SFN->>Workers: Validate Request & Calculate Blast Radius
+    SFN->>Workers: AwaitRecallApproval (.waitForTaskToken)
+    Note over SFN: Workflow pauses pending human authorization
+    
+    Officer->>API: POST /v1/recalls/{id}/approve (Cognito Role Verified)
+    API->>SFN: SendTaskSuccess(TaskToken)
+    
+    par Emergency Broadcast & Containment
+        SFN->>Workers: Dispatch Notifications
+        Workers->>SNS: Publish Emergency Broadcast (Deduplication Key)
+        SNS-->>DCs: High-Priority Hold Order Dispatched
+    and POS Scan-Block
+        SFN->>Workers: Lock POS Inventory
+        Workers->>DDB: Record POS Register Blocks (EDI 940)
+    and Carrier Intercept
+        SFN->>Workers: Identify In-Transit Shipments
+        Workers->>DCs: Divert En Route Trucks to Secure Depot C
+    end
+
+    loop Facility Verification
+        DCs->>API: POST /v1/recalls/{id}/acknowledge
+        API->>DDB: Update ACK Status & Physical Hold Verified
+    end
+
+    SFN->>Workers: Track Acknowledgements
+    Note over SFN,Workers: Verify 100% Facilities Confirmed Physical Hold
+    SFN->>Workers: Record Cryptographic Audit Entry (SHA-256 Chain)
+    SFN->>Workers: Finalize Recall (Atomic Lock Release)
+    Workers->>DDB: Delete ACTIVE_RECALL#<batchId> & Mark COMPLETED
+```
+
+### Concurrency & Approval Safeguards:
+1. **Atomic Mutual Exclusion Lock:** Concurrent recall initiation requests for the same batch are atomically serialized using a DynamoDB conditional write on `PK=ORG#<orgId>, SK=ACTIVE_RECALL#<batchId>`. Duplicate attempts fail with `409 Conflict`.
+2. **Human Approval Gate:** Step Functions Standard Workflows pause at `AwaitRecallApproval` using `.waitForTaskToken`. Only authorized users with `COMPLIANCE_OFFICER` or `ADMIN` Cognito roles can sign off.
+3. **Approval Expiration:** Timeouts (default 86,400s) automatically transition to `FAILED` with `APPROVAL_WINDOW_EXPIRED`; timeouts never auto-approve.
+4. **Strict Completion Criteria:** A recall transitions to `COMPLETED` strictly when every single impacted facility has verified physical cooler quarantine with `physicalHoldVerified == True`.
+
+---
+
+## 7. Evidence Management & Pre-signed S3 Protocol
+
+Raw lab certificates, microbial assays, and bills of lading are stored in Amazon S3 with server-side encryption:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as Quality Officer
+    participant Frontend as BatchGuard Client
+    participant Lambda as Evidence Handler
+    participant S3 as Amazon S3 Evidence Vault
+
+    User->>Frontend: Select File (e.g. Microbial_Assay_Lot_8891A.pdf)
+    Frontend->>Lambda: POST /v1/evidence/upload-url (Filename, BatchId, MIME)
+    Lambda->>Lambda: Validate File Extension, Batch Association & Role
+    Lambda->>S3: Generate Pre-signed PUT URL (15m expiry, SSE-S3)
+    Lambda-->>Frontend: Return Presigned URL & S3 Object Key
+    Frontend->>S3: Direct PUT (Binary Payload) with Content-Type header
+    S3-->>Frontend: 200 OK (Uploaded directly to S3)
+    Frontend->>Lambda: POST /v1/evidence (Confirm metadata & checksum)
+    Lambda->>Lambda: Record Evidence Metadata in DynamoDB
+```
+
+* **Zero Binary Proxies:** Large files are never proxied through Lambda compute or API Gateway, avoiding Lambda execution overhead for large binaries and preventing memory exhaustion.
+* **Encryption & Expiry:** S3 buckets enforce `AES-256` server-side encryption and Block Public Access. Pre-signed URLs expire in 900 seconds.
+
+---
+
+## 8. Cryptographic Audit Trail (SHA-256 Hash Chain)
+
+All critical tracking events, recall actions, and approval decisions are written to an append-only, content-addressable SHA-256 hash chain:
+
+```mermaid
+flowchart LR
+    Genesis["Genesis Block\n0x0000...0000"] --> Record1["Event 1: BATCH_REGISTERED\nHash: 0x4a1e...b921\nPrevHash: Genesis"]
+    Record1 --> Record2["Event 2: TELEMETRY_ALERT\nHash: 0x8f3c...10ea\nPrevHash: 0x4a1e...b921"]
+    Record2 --> Record3["Event 3: RECALL_INITIATED\nHash: 0xd92b...77f4\nPrevHash: 0x8f3c...10ea"]
+    Record3 --> Record4["Event 4: HOLD_VERIFIED\nHash: 0x2e04...9a12\nPrevHash: 0xd92b...77f4"]
+```
+
+### Mathematical Formulation:
+$$\text{RecordHash}_n = \text{SHA256}\Big(\text{PreviousHash}_{n-1} \,\|\, \text{CanonicalJSON}(\text{Payload}_n)\Big)$$
+
+* **Canonical Serialization:** Enforces alphabetically sorted keys with compact separators (`json.dumps(data, sort_keys=True, separators=(',', ':'))`).
+* **Atomic Concurrency Control:** Audit log insertion and `AUDIT_LEDGER_HEAD` advancement execute within the same DynamoDB `TransactWriteItems` transaction.
+* **Accuracy Disclosure:** BatchGuard's audit ledger operates as a **content-addressable SHA-256 hash chain** providing tamper-evident log integrity; it does not claim PKI hardware signatures or distributed blockchain consensus.
+
+---
+
+## 9. Failure Modes & Resilience Patterns
+
+| Failure Scenario | Mitigation Pattern | Architectural Guarantee |
+| :--- | :--- | :--- |
+| **API Gateway Throttling / DDoS** | Token bucket rate limiting (10,000 req/sec, burst 5,000) | Prevents upstream Lambda concurrency exhaustion |
+| **Concurrent Recall Initiation** | DynamoDB conditional write (`attribute_not_exists(PK)`) | Eliminates race conditions; serializes incidents |
+| **Step Functions Worker Failure** | Bounded retries (max 3, exponential backoff) + `States.ALL` catch | Graceful failure transition; releases mutual exclusion lock |
+| **Approval Window Timeout** | Step Functions `TimeoutSeconds: 86400` | Transitions to `FAILED` with `APPROVAL_WINDOW_EXPIRED` |
+| **Network Interruption on S3 Upload**| Pre-signed URLs with time-limited window (15m) | Direct retry without server state corruption |
+| **Transient DynamoDB Latency** | Exponential jitter backoff (`botocore.config.Config`) | Eliminates thundering herd on partition hotspots |
+
+---
+
+## 10. Summary Matrix: Technology Invariants
+
+* **Infrastructure as Code:** 100% defined in AWS SAM [`template.yaml`](../template.yaml).
+* **Test Coverage:** 108 backend tests (`pytest`), 21 frontend unit tests (`node --test`), 32 E2E tests (`Playwright`).
+* **Operational Mode:** Public interactive demonstration in DEMO MODE with zero external cloud dependencies, backed by a fully implemented AWS SAM serverless architecture.
