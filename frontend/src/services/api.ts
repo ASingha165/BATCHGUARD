@@ -115,7 +115,7 @@ export function getCachedConnectionStatus(): BackendConnectionStatus {
 }
 
 async function fetchJson<T>(endpoint: string, options?: RequestInit, isRetry = false): Promise<ApiResponse<T>> {
-  if (FORCE_MOCK || (!API_BASE_URL && typeof window === 'undefined')) {
+  if (FORCE_MOCK || !API_BASE_URL) {
     throw new Error('DEMO_MODE_ACTIVE');
   }
 

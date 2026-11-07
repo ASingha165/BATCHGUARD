@@ -61,4 +61,6 @@ yarn-error.log*
 .coverage
 htmlcov/
 .pytest_cache/
+test-results/
+playwright-report/
 
