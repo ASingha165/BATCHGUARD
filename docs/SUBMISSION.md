@@ -104,7 +104,7 @@ flowchart TD
 
     subgraph StorageLayer ["Serverless Storage & Messaging"]
         DDB[("Amazon DynamoDB<br/>(Single-Table Design)")]
-        S3[("Amazon S3 Evidence Vault<br/>(KMS / SSE-S3 Encrypted)")]
+        S3[("Amazon S3 Evidence Vault<br/>(SSE-S3 AES-256 Encrypted)")]
         SNS["Amazon SNS<br/>(Emergency Fan-out Topic)"]
         CW["Amazon CloudWatch<br/>(Structured JSON Logs & Alarms)"]
     end
@@ -167,7 +167,7 @@ BatchGuard has undergone rigorous multi-layer automated testing:
 | **Production E2E Tests** | Playwright (Chromium) | 32 scenarios across live Vercel production deployment | **32 / 32 Passed** | 54.8s |
 | **Frontend Unit Tests** | Vitest + React Testing Library | 21 component and service unit tests | **21 / 21 Passed** | 78ms |
 | **Backend Suite** | pytest + moto | 108 tests covering API handlers, workers, lineage BFS, hash chains, and locks | **108 / 108 Passed** | 2.15s |
-| **IaC Template Lint** | AWS SAM CLI (`sam validate --lint`) | 30 SAM resources, IAM roles, ASL JSON state machine | **0 Errors, 0 Warnings** | Valid |
+| **IaC Template Lint** | AWS SAM CLI (`sam validate --lint`) | 48 CloudFormation resources, 20 Lambdas, 29 API routes, ASL state machine | **0 Errors, 0 Warnings** | Valid |
 | **Frontend TypeScript** | `tsc --noEmit` | Strict TypeScript static analysis | **0 Errors** | Clean |
 | **Production Build** | Vite v5.4.21 | Bundled and tree-shaken static assets | **Successful** | 1.83s |
 

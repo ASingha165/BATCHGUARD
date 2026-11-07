@@ -142,7 +142,7 @@ flowchart LR
 2. **AWS Lambda (Python 3.12 ARM64):** 20 modular functions defined in `template.yaml`, divided into 7 HTTP API handlers (`backend/handlers/`) and 13 Step Functions task workers (`backend/workers/`).
 3. **Amazon DynamoDB (Single-Table):** Houses all application entities with Partition Key (`PK`), Sort Key (`SK`), and two Global Secondary Indexes (`GSI1`, `GSI2`) supporting sub-10ms queries.
 4. **AWS Step Functions Standard Workflow:** Coordinates multi-stage recall containment with human approval gates, bounded retries, and atomic lock release.
-5. **Amazon S3 Evidence Vault:** Encrypted compliance store (`SSE-S3` / KMS) using short-lived (15-minute) pre-signed PUT and GET URLs.
+5. **Amazon S3 Evidence Vault:** Encrypted compliance store (`SSE-S3` AES-256) using short-lived (15-minute) pre-signed PUT and GET URLs.
 6. **Amazon SNS:** High-priority fan-out alert topic dispatching emergency hold notices to facility managers and dispatchers.
 
 ---
