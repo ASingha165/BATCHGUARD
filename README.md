@@ -241,7 +241,10 @@ For an evaluator or reviewer exploring the live demonstration at [https://batchg
 
 * [System Architecture Specification](docs/architecture.md) — Comprehensive technical architecture, sequence diagrams & failure modes
 * [Demonstration Presentation Script](docs/DEMO_SCRIPT.md) — Timed 3–5 minute evaluator walkthrough
+* [Video Recording Checklist](docs/VIDEO_RECORDING_CHECKLIST.md) — Step-by-step evaluator recording guide & script cues
 * [Hackathon Submission Package](docs/SUBMISSION.md) — Official AWS Challenge submission narrative
+* [AWS Technical Evidence & Inventories](docs/evidence/AWS_TECHNICAL_EVIDENCE.md) — Implementation verification, test logs & schema inventories
+* [Submission Audit Report](docs/SUBMISSION_AUDIT.md) — Pre-competition requirements and eligibility audit
 * [Master Engineering Directives](AGENTS.md) — Architectural invariants and single source of truth
 * [Database Schema & Access Patterns](docs/database-schema.md) — DynamoDB single-table design & GSI models
 * [API Specification](docs/api-specification.md) — Complete REST endpoint documentation

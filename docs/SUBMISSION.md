@@ -8,6 +8,9 @@
 **Live Production Demonstration:** [https://batchguard-pi.vercel.app/dashboard](https://batchguard-pi.vercel.app/dashboard)  
 **Architecture Specification:** [docs/architecture.md](docs/architecture.md)  
 **Evaluator Demonstration Script:** [docs/DEMO_SCRIPT.md](docs/DEMO_SCRIPT.md)  
+**Video Recording Checklist:** [docs/VIDEO_RECORDING_CHECKLIST.md](docs/VIDEO_RECORDING_CHECKLIST.md)  
+**Technical Evidence & Inventories:** [docs/evidence/AWS_TECHNICAL_EVIDENCE.md](docs/evidence/AWS_TECHNICAL_EVIDENCE.md)  
+**Submission Readiness Audit:** [docs/SUBMISSION_AUDIT.md](docs/SUBMISSION_AUDIT.md)  
 
 ---
 
