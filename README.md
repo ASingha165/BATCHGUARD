@@ -15,6 +15,16 @@ When a food safety emergency occurs (e.g. microbial contamination, pathogen dete
 
 ---
 
+## Deployment Status & Architecture Clarification
+
+> [!IMPORTANT]
+> ### Public Demonstration vs. AWS Backend Architecture
+> * **Publicly Deployed Demonstration (Vercel):** The BatchGuard frontend is deployed on **Vercel** as an interactive, frontend-only demonstration running in **DEMO MODE**. It simulates batch genealogy trees, blast radius isolation, and multi-node recall operations in-browser with rich mock data. It does not invoke live AWS backend services.
+> * **Implemented and Locally Tested (AWS Serverless Architecture):** The complete production-grade serverless backend—including Python 3.12 AWS Lambda handlers (20 functions), AWS Step Functions recall orchestrator state machine (`recall_orchestrator.asl.json`), DynamoDB single-table schema, S3 evidence vault, and SNS notification topics—is fully implemented, validated by 108 backend tests, and SAM-linted (`template.yaml`).
+> * **Not Deployed to AWS:** The AWS serverless backend infrastructure is not currently deployed to AWS due to an explicit AWS Organizations Service Control Policy (SCP `p-ifuj16mo`) restriction on `s3:CreateBucket`, `lambda:*`, `dynamodb:*`, and associated compute services. Do not assume AWS Lambda, DynamoDB, or Step Functions are live in the public demonstration.
+
+---
+
 ## Core Capabilities
 
 * **Batch Registry & Lineage:** Register finished lots with GS1 GTINs, track upstream raw ingredient origins, harvest timestamps, and processing parameters.
