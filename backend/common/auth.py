@@ -73,14 +73,36 @@ def extract_auth_context(event: Dict[str, Any]) -> AuthContext:
                 is_authenticated=True,
             )
 
-    # 2. Development / Staging fallback path
-    # If unauthenticated in production, reject immediately
-    env = os.environ.get("ENVIRONMENT", config.environment).lower()
-    if env in ["prod", "production"]:
-        logger.error("Rejecting request: Missing trusted authorizer context in production.")
-        raise UnauthorizedError("Trusted authentication context missing from request.")
+    # 2. IAM SigV4 Authentication Path (for non-public test environments / automation runners)
+    identity = request_context.get("identity") or {}
+    caller_arn = identity.get("userArn") or identity.get("caller")
+    if caller_arn:
+        caller_user = identity.get("user") or str(caller_arn).split("/")[-1]
+        return AuthContext(
+            org_id=config.default_org_id,
+            user_id=str(caller_arn),
+            user_email=f"{caller_user}@iam.internal",
+            roles=["ADMIN", "COMPLIANCE_OFFICER"],
+            is_authenticated=True,
+        )
 
-    # In dev/test: inspect headers or fallback to default org
+    # 3. Guard against Client-Supplied Header Spoofing in Deployed Environments
+    # In ANY deployed AWS Lambda execution environment or non-test environment,
+    # client-supplied HTTP headers (e.g. X-User-Roles, X-Organization-Id) MUST NEVER be trusted!
+    is_lambda_runtime = bool(os.environ.get("AWS_LAMBDA_FUNCTION_NAME"))
+    env = os.environ.get("ENVIRONMENT", config.environment).lower()
+
+    if is_lambda_runtime or env in ["prod", "production", "staging"]:
+        logger.error(
+            "Rejecting request: Missing trusted authorizer context (Cognito User Pool claims or IAM SigV4 identity). "
+            "Client-supplied authentication headers are strictly rejected in deployed environments."
+        )
+        raise UnauthorizedError(
+            "Trusted authentication context missing from request. "
+            "Client-supplied authentication headers cannot be used to establish identity."
+        )
+
+    # 4. Local Unit Testing / Offline Mock Harness ONLY (ENVIRONMENT == 'development' or 'test' outside Lambda)
     headers = event.get("headers") or {}
     # Normalize headers to lowercase to ensure case-insensitive matching
     normalized_headers = {k.lower(): v for k, v in headers.items()}

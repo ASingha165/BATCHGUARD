@@ -97,6 +97,41 @@ def test_production_missing_authorizer_rejected():
             extract_auth_context(event)
 
 
+def test_deployed_lambda_rejects_client_header_spoofing():
+    """Verifies that in a deployed AWS Lambda environment, arbitrary client headers cannot grant privileges."""
+    with patch.dict(os.environ, {"AWS_LAMBDA_FUNCTION_NAME": "BatchGuard-Minimal-RecallFunction-dev", "ENVIRONMENT": "dev"}):
+        event = {
+            "httpMethod": "POST",
+            "path": "/v1/recalls",
+            "requestContext": {},  # Missing authorizer / Cognito claims
+            "headers": {
+                "X-User-Roles": "ADMIN,COMPLIANCE_OFFICER",
+                "X-Organization-Id": "ORG-ATTACKER",
+                "X-User-Id": "usr-attacker",
+            },
+        }
+        with pytest.raises(UnauthorizedError) as exc_info:
+            extract_auth_context(event)
+        assert "Trusted authentication context missing" in str(exc_info.value)
+
+
+def test_iam_sigv4_identity_accepted_for_non_public_test_environment():
+    """Verifies that IAM SigV4 authenticated callers are accepted in non-public test/automation environments."""
+    event = {
+        "requestContext": {
+            "identity": {
+                "userArn": "arn:aws:iam::123456789012:role/BatchGuardTestRunnerRole",
+                "user": "BatchGuardTestRunner",
+            }
+        }
+    }
+    auth = extract_auth_context(event)
+    assert auth.is_authenticated is True
+    assert "ADMIN" in auth.roles
+    assert "COMPLIANCE_OFFICER" in auth.roles
+    assert auth.user_id == "arn:aws:iam::123456789012:role/BatchGuardTestRunnerRole"
+
+
 def test_cognito_authorizer_claims_extraction():
     event = {
         "requestContext": {

@@ -191,6 +191,8 @@ export const Header: React.FC<HeaderProps> = ({ currentSection = 'Operations', o
               title={
                 connStatus === 'AUTHENTICATED_LIVE'
                   ? 'Connected to live AWS API Gateway with authenticated session'
+                  : connStatus === 'AWS_CONNECTED'
+                  ? 'Connected to live AWS minimal serverless backend (API Gateway + DynamoDB + Step Functions)'
                   : connStatus === 'CONFIGURED_UNREACHABLE'
                   ? 'Remote API URL is configured but unreachable'
                   : connStatus === 'BACKEND_UNAVAILABLE'
@@ -200,7 +202,7 @@ export const Header: React.FC<HeaderProps> = ({ currentSection = 'Operations', o
             >
               <span
                 className={`w-2 h-2 rounded-full ${
-                  connStatus === 'AUTHENTICATED_LIVE'
+                  connStatus === 'AUTHENTICATED_LIVE' || connStatus === 'AWS_CONNECTED'
                     ? 'bg-secondary animate-pulse'
                     : connStatus === 'CONFIGURED_UNREACHABLE' || connStatus === 'BACKEND_UNAVAILABLE'
                     ? 'bg-error'
@@ -210,6 +212,8 @@ export const Header: React.FC<HeaderProps> = ({ currentSection = 'Operations', o
               <span className="font-data-mono-sm text-xs sm:text-data-mono-sm text-on-surface font-semibold tracking-wider">
                 {connStatus === 'AUTHENTICATED_LIVE'
                   ? 'US-EAST PROD (LIVE)'
+                  : connStatus === 'AWS_CONNECTED'
+                  ? 'AWS CONNECTED (MVP)'
                   : connStatus === 'CONFIGURED_UNREACHABLE'
                   ? 'API UNREACHABLE'
                   : connStatus === 'BACKEND_UNAVAILABLE'

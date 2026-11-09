@@ -18,7 +18,17 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
     logger.info(f"Step Functions task: Finalizing workflow execution for recall {recall_id}")
 
-    # Transition from EXECUTING to NOTIFICATION_DISPATCHED to AWAITING_ACKNOWLEDGEMENTS
+    # Transition through state machine sequence: APPROVED -> EXECUTING -> NOTIFICATION_DISPATCHED -> AWAITING_ACKNOWLEDGEMENTS
+    try:
+        recall_service.transition_recall_status(
+            recall_id=recall_id,
+            target_status="APPROVED",
+            org_id=org_id,
+            actor="SYSTEM_STEP_FUNCTIONS",
+        )
+    except Exception:
+        pass
+
     try:
         recall_service.transition_recall_status(
             recall_id=recall_id,

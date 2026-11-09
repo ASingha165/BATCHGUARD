@@ -295,3 +295,28 @@ Primary Table Name: `BatchGuard-Main-{Environment}`
      - Quarantine tasks use deterministic identifiers (`TSK-<hash>`) and preserve existing verified hold states.
      - Carrier intercepts check existing records and preserve dispatch timestamps.
      - Worker audit events supply deterministic idempotency keys (`SFN#<recallId>#<action>`).
+
+---
+
+## 13. Minimal AWS Serverless Deployment Profile (`template.minimal.yaml`)
+
+1. **Target Architecture & Scope:**
+   * In addition to the enterprise production specification (`template.yaml` with 48 resources), BatchGuard maintains a lean, low-cost deployment profile in `template.minimal.yaml` (17 CloudFormation resources).
+   * Focuses on the core value loop: Food Batch Registration (`POST/GET /batches`), One-Click Recall Orchestration (`POST/GET /recalls`), and 4-stage Step Functions execution (`minimal_recall_orchestrator.asl.json`).
+2. **Cost & Infrastructure Constraints:**
+   * Zero VPC / NAT Gateways (saves ~$32.40/mo per NAT).
+   * On-demand DynamoDB billing (`PAY_PER_REQUEST`).
+   * Unreserved concurrency on AWS Lambda (Python 3.12, 256MB memory, 30s timeout).
+   * 14-day CloudWatch log retention across all 7 LogGroups.
+   * Free-tier compliant for demonstration workloads (<2,000 requests/mo).
+3. **Frontend Connection Dual Mode:**
+   * `LOCAL_DEMO_MODE`: Default mode, zero AWS connection needed, completely offline in-memory mock client for safe public demonstrations.
+   * `AWS_CONNECTED`: Activated via `VITE_CONNECTION_MODE=AWS` and `VITE_API_BASE_URL`. Dispatches real HTTP requests to API Gateway; does not silently fall back to mock data on server errors.
+4. **Resource Count Verification:**
+   * 1 REST API Gateway (`BatchGuardMinimalApi`) with CORS and throttling.
+   * 1 DynamoDB Single Table (`BatchGuard-Minimal-${Environment}`).
+   * 2 API Lambda Handlers (`BatchApiFunction`, `RecallApiFunction`).
+   * 5 Step Functions Worker Lambdas (`CalculateBlastRadiusWorker`, `LockInventoryWorker`, `RecordAuditWorker`, `FinalizeRecallWorker`, `WorkflowFailureWorker`).
+   * 1 Step Functions State Machine (`MinimalRecallStateMachine`).
+   * 7 CloudWatch Log Groups with explicit 14-day retention.
+   * Exactly 17 declared CloudFormation resources.

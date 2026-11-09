@@ -1,0 +1,328 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  BatchGuard Minimal Serverless Architecture (MVP)
+  Core workflow: Create Batch -> DynamoDB -> Trigger Recall -> Step Functions -> POS Lock -> Audit -> Recall Status.
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - staging
+      - prod
+    Description: Deployment target environment stage.
+
+  LogLevel:
+    Type: String
+    Default: INFO
+    AllowedValues:
+      - DEBUG
+      - INFO
+      - WARNING
+      - ERROR
+    Description: Structured JSON logging level.
+
+  CorsAllowOrigin:
+    Type: String
+    Default: https://batchguard-pi.vercel.app
+    Description: Authorized frontend origin for CORS restriction.
+
+Globals:
+  Function:
+    Runtime: python3.12
+    Timeout: 30
+    MemorySize: 256
+    Architectures:
+      - arm64
+    Environment:
+      Variables:
+        ENVIRONMENT: !Ref Environment
+        LOG_LEVEL: !Ref LogLevel
+        DYNAMODB_TABLE: !Ref BatchGuardMinimalTable
+        STEP_FUNCTIONS_RECALL_ARN: !Ref MinimalRecallOrchestratorStateMachine
+        POWERTOOLS_SERVICE_NAME: BatchGuardMinimal
+
+Resources:
+  # ============================================================================
+  # 1. API GATEWAY (REST API with CORS and Throttling)
+  # ============================================================================
+  BatchGuardMinimalApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: !Ref Environment
+      TracingEnabled: false
+      Cors:
+        AllowMethods: "'GET,POST,OPTIONS'"
+        AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Organization-Id,X-User-Id,X-User-Email,X-User-Roles'"
+        AllowOrigin: !Sub "'${CorsAllowOrigin}'"
+        MaxAge: "'600'"
+      MethodSettings:
+        - ResourcePath: "/*"
+          HttpMethod: "*"
+          ThrottlingBurstLimit: 100
+          ThrottlingRateLimit: 50
+
+  # ============================================================================
+  # 2. DYNAMODB PERSISTENCE (Single-Table, On-Demand, SSE-Enabled)
+  # ============================================================================
+  BatchGuardMinimalTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "BatchGuard-Minimal-${Environment}"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+        - AttributeName: GSI1PK
+          AttributeType: S
+        - AttributeName: GSI1SK
+          AttributeType: S
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: GSI1
+          KeySchema:
+            - AttributeName: GSI1PK
+              KeyType: HASH
+            - AttributeName: GSI1SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: false
+      SSESpecification:
+        SSEEnabled: true
+
+  # ============================================================================
+  # 3. HTTP API HANDLERS
+  # ============================================================================
+  BatchFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "BatchGuard-Minimal-BatchFunction-${Environment}"
+      CodeUri: backend/
+      Handler: handlers.batch_handler.lambda_handler
+      Description: Handles batch registration and batch queries.
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref BatchGuardMinimalTable
+      Events:
+        CreateBatch:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BatchGuardMinimalApi
+            Path: /v1/batches
+            Method: POST
+        GetBatch:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BatchGuardMinimalApi
+            Path: /v1/batches/{id}
+            Method: GET
+        ListBatches:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BatchGuardMinimalApi
+            Path: /v1/batches
+            Method: GET
+
+  BatchFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/BatchGuard-Minimal-BatchFunction-${Environment}"
+      RetentionInDays: 14
+
+  RecallFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "BatchGuard-Minimal-RecallFunction-${Environment}"
+      CodeUri: backend/
+      Handler: handlers.recall_handler.lambda_handler
+      Description: Handles recall initiation and recall status queries.
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref BatchGuardMinimalTable
+        - StepFunctionsExecutionPolicy:
+            StateMachineName: !GetAtt MinimalRecallOrchestratorStateMachine.Name
+      Events:
+        InitiateRecall:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BatchGuardMinimalApi
+            Path: /v1/recalls
+            Method: POST
+        InitiateRecallAlt:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BatchGuardMinimalApi
+            Path: /v1/recalls/initiate
+            Method: POST
+        GetRecall:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BatchGuardMinimalApi
+            Path: /v1/recalls/{id}
+            Method: GET
+        GetRecallStatus:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BatchGuardMinimalApi
+            Path: /v1/recalls/{id}/status
+            Method: GET
+        ListRecalls:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BatchGuardMinimalApi
+            Path: /v1/recalls
+            Method: GET
+
+  RecallFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/BatchGuard-Minimal-RecallFunction-${Environment}"
+      RetentionInDays: 14
+
+  # ============================================================================
+  # 4. STEP FUNCTIONS TASK WORKERS
+  # ============================================================================
+  CalculateBlastRadiusWorker:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "BatchGuard-Minimal-Worker-BlastRadius-${Environment}"
+      CodeUri: backend/
+      Handler: workers.calculate_blast_radius.lambda_handler
+      Description: Step Functions worker calculating blast radius.
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref BatchGuardMinimalTable
+
+  CalculateBlastRadiusWorkerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/BatchGuard-Minimal-Worker-BlastRadius-${Environment}"
+      RetentionInDays: 14
+
+  LockPosInventoryWorker:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "BatchGuard-Minimal-Worker-LockPOS-${Environment}"
+      CodeUri: backend/
+      Handler: workers.lock_pos_inventory.lambda_handler
+      Description: Step Functions worker simulating POS scan-block.
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref BatchGuardMinimalTable
+
+  LockPosInventoryWorkerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/BatchGuard-Minimal-Worker-LockPOS-${Environment}"
+      RetentionInDays: 14
+
+  RecordAuditWorker:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "BatchGuard-Minimal-Worker-RecordAudit-${Environment}"
+      CodeUri: backend/
+      Handler: workers.record_audit_entry.lambda_handler
+      Description: Step Functions worker appending cryptographic audit entry.
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref BatchGuardMinimalTable
+
+  RecordAuditWorkerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/BatchGuard-Minimal-Worker-RecordAudit-${Environment}"
+      RetentionInDays: 14
+
+  FinalizeRecallWorker:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "BatchGuard-Minimal-Worker-FinalizeRecall-${Environment}"
+      CodeUri: backend/
+      Handler: workers.finalize_recall.lambda_handler
+      Description: Step Functions worker finalizing recall state.
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref BatchGuardMinimalTable
+
+  FinalizeRecallWorkerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/BatchGuard-Minimal-Worker-FinalizeRecall-${Environment}"
+      RetentionInDays: 14
+
+  HandleFailureWorker:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "BatchGuard-Minimal-Worker-HandleFailure-${Environment}"
+      CodeUri: backend/
+      Handler: workers.handle_failure.lambda_handler
+      Description: Step Functions worker handling workflow failure and releasing locks.
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref BatchGuardMinimalTable
+
+  HandleFailureWorkerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/BatchGuard-Minimal-Worker-HandleFailure-${Environment}"
+      RetentionInDays: 14
+
+  # ============================================================================
+  # 5. STEP FUNCTIONS RECALL ORCHESTRATOR STATE MACHINE
+  # ============================================================================
+  MinimalRecallOrchestratorStateMachine:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      Name: !Sub "BatchGuard-Minimal-RecallOrchestrator-${Environment}"
+      DefinitionUri: statemachine/minimal_recall_orchestrator.asl.json
+      DefinitionSubstitutions:
+        CalculateBlastRadiusWorkerArn: !GetAtt CalculateBlastRadiusWorker.Arn
+        LockPosInventoryWorkerArn: !GetAtt LockPosInventoryWorker.Arn
+        RecordAuditWorkerArn: !GetAtt RecordAuditWorker.Arn
+        FinalizeRecallWorkerArn: !GetAtt FinalizeRecallWorker.Arn
+        HandleFailureWorkerArn: !GetAtt HandleFailureWorker.Arn
+      Policies:
+        - LambdaInvokePolicy:
+            FunctionName: !Ref CalculateBlastRadiusWorker
+        - LambdaInvokePolicy:
+            FunctionName: !Ref LockPosInventoryWorker
+        - LambdaInvokePolicy:
+            FunctionName: !Ref RecordAuditWorker
+        - LambdaInvokePolicy:
+            FunctionName: !Ref FinalizeRecallWorker
+        - LambdaInvokePolicy:
+            FunctionName: !Ref HandleFailureWorker
+
+Outputs:
+  ApiBaseUrl:
+    Description: Base URL for BatchGuard Minimal REST API Gateway endpoints
+    Value: !Sub "https://${BatchGuardMinimalApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}/v1"
+    Export:
+      Name: !Sub "${AWS::StackName}-ApiBaseUrl"
+
+  DynamoDbTableName:
+    Description: DynamoDB Single-Table Persistence Engine
+    Value: !Ref BatchGuardMinimalTable
+    Export:
+      Name: !Sub "${AWS::StackName}-DynamoDbTable"
+
+  StateMachineArn:
+    Description: Step Functions Minimal Recall Orchestrator State Machine ARN
+    Value: !Ref MinimalRecallOrchestratorStateMachine
+    Export:
+      Name: !Sub "${AWS::StackName}-StateMachineArn"
+
+  AwsRegion:
+    Description: Configured AWS Region
+    Value: !Ref AWS::Region
+

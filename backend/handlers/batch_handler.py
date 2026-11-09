@@ -49,9 +49,9 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             lineage_data = batch_service.get_lineage(batch_id=batch_id, org_id=auth.org_id)
             return success_response(data=lineage_data, request_id=request_id)
 
-        # Route 2: GET /v1/batches/{batchId}
-        if http_method == "GET" and path_parameters.get("batchId"):
-            batch_id = path_parameters["batchId"]
+        # Route 2: GET /v1/batches/{batchId} or /v1/batches/{id}
+        if http_method == "GET" and (path_parameters.get("batchId") or path_parameters.get("id")):
+            batch_id = path_parameters.get("batchId") or path_parameters.get("id")
             batch_data = batch_service.get_batch(batch_id, org_id=auth.org_id)
             return success_response(data=batch_data, request_id=request_id)
 

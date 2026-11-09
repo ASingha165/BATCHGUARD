@@ -45,8 +45,8 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             blast_data = recall_service.assess_blast_radius(req.batchId, org_id=auth.org_id)
             return success_response(data=blast_data, request_id=request_id)
 
-        # Route 2: POST /v1/recalls/initiate
-        if http_method == "POST" and path.endswith("/initiate"):
+        # Route 2: POST /v1/recalls/initiate or POST /v1/recalls
+        if http_method == "POST" and (path.endswith("/initiate") or path.rstrip("/").endswith("/recalls")):
             # Enforce server-side RBAC: Only authorized compliance officers or admins may initiate recalls
             require_role(auth, ["COMPLIANCE_OFFICER", "ADMIN"])
 
@@ -119,9 +119,9 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             acks = recall_service.get_acknowledgements(recall_id, org_id=auth.org_id)
             return success_response(data={"acknowledgements": acks}, request_id=request_id)
 
-        # Route 10: GET /v1/recalls/{recallId}
-        if http_method == "GET" and path_parameters.get("recallId"):
-            recall_id = path_parameters["recallId"]
+        # Route 10: GET /v1/recalls/{recallId} or /v1/recalls/{id}
+        if http_method == "GET" and (path_parameters.get("recallId") or path_parameters.get("id")):
+            recall_id = path_parameters.get("recallId") or path_parameters.get("id")
             recall = recall_service.get_recall(recall_id, org_id=auth.org_id)
             return success_response(data=recall, request_id=request_id)
 

@@ -66,13 +66,15 @@ export function buildApiUrl(baseUrl: string, endpoint: string): string {
   return `${base}/v1${cleanEndpoint}`;
 }
 
+const CONNECTION_MODE = (import.meta.env.VITE_CONNECTION_MODE || '').toUpperCase();
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
-const FORCE_MOCK = import.meta.env.VITE_USE_MOCK_DATA === 'true';
+const FORCE_MOCK = import.meta.env.VITE_USE_MOCK_DATA === 'true' || CONNECTION_MODE === 'DEMO';
 
 export type BackendConnectionStatus =
   | 'LOCAL_DEMO_MODE'
   | 'CONFIGURED_UNREACHABLE'
   | 'AUTHENTICATED_LIVE'
+  | 'AWS_CONNECTED'
   | 'BACKEND_UNAVAILABLE';
 
 let cachedConnectionStatus: BackendConnectionStatus =
@@ -87,7 +89,8 @@ export async function checkBackendConnection(): Promise<BackendConnectionStatus>
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 3500);
-    const url = buildApiUrl(API_BASE_URL, '/overview/summary');
+    // Probe /batches first (available across both standard and minimal serverless deployments)
+    const url = buildApiUrl(API_BASE_URL, '/batches');
     const res = await fetch(url, {
       method: 'GET',
       headers: { Accept: 'application/json' },
@@ -95,8 +98,11 @@ export async function checkBackendConnection(): Promise<BackendConnectionStatus>
     }).finally(() => clearTimeout(timeoutId));
 
     if (res.ok) {
-      cachedConnectionStatus = 'AUTHENTICATED_LIVE';
-      return 'AUTHENTICATED_LIVE';
+      const mode = CONNECTION_MODE === 'AWS' || !import.meta.env.VITE_COGNITO_USER_POOL_ID
+        ? 'AWS_CONNECTED'
+        : 'AUTHENTICATED_LIVE';
+      cachedConnectionStatus = mode;
+      return mode;
     }
     if (res.status >= 500) {
       cachedConnectionStatus = 'BACKEND_UNAVAILABLE';
@@ -188,10 +194,11 @@ export const apiService = {
     try {
       const query = status && status !== 'ALL' ? `?status=${encodeURIComponent(status)}` : '';
       const res = await fetchJson<{ batches: Batch[] }>(`/batches${query}`);
-      const list = res.data?.batches || DEMO_BATCHES;
+      const list = res.data?.batches || (CONNECTION_MODE === 'AWS' ? [] : DEMO_BATCHES);
       if (!status || status === 'ALL') return list;
       return list.filter((b) => b.status === status);
-    } catch {
+    } catch (err) {
+      if (CONNECTION_MODE === 'AWS') throw err;
       if (!status || status === 'ALL') return DEMO_BATCHES;
       return DEMO_BATCHES.filter((b) => b.status === status);
     }
@@ -201,7 +208,8 @@ export const apiService = {
     try {
       const res = await fetchJson<Batch>(`/batches/${encodeURIComponent(batchId)}`);
       return res.data;
-    } catch {
+    } catch (err) {
+      if (CONNECTION_MODE === 'AWS') throw err;
       return DEMO_BATCHES.find((b) => b.batchId === batchId) || DEMO_BATCHES[0];
     }
   },
@@ -250,7 +258,10 @@ export const apiService = {
       });
       if (res.data) return res.data;
       throw new Error('Failed to register batch');
-    } catch {
+    } catch (err) {
+      if (CONNECTION_MODE === 'AWS') {
+        throw err;
+      }
       const newBatch: Batch = {
         batchId: `BG-2024-${Math.floor(1000 + Math.random() * 9000)}-ORG`,
         lotNumber: payload.lotNumber,
@@ -292,8 +303,9 @@ export const apiService = {
   async getRecalls(): Promise<RecallIncident[]> {
     try {
       const res = await fetchJson<{ recalls: RecallIncident[] }>('/recalls');
-      return res.data?.recalls || DEMO_ACTIVE_RECALLS;
-    } catch {
+      return res.data?.recalls || (CONNECTION_MODE === 'AWS' ? [] : DEMO_ACTIVE_RECALLS);
+    } catch (err) {
+      if (CONNECTION_MODE === 'AWS') throw err;
       return DEMO_ACTIVE_RECALLS;
     }
   },
@@ -302,7 +314,8 @@ export const apiService = {
     try {
       const res = await fetchJson<RecallIncident>(`/recalls/${encodeURIComponent(recallId)}`);
       return res.data;
-    } catch {
+    } catch (err) {
+      if (CONNECTION_MODE === 'AWS') throw err;
       return DEMO_ACTIVE_RECALLS.find((r) => r.recallId === recallId) || DEMO_ACTIVE_RECALLS[0];
     }
   },
@@ -333,7 +346,10 @@ export const apiService = {
       });
       if (res.data) return res.data;
       throw new Error('Failed to initiate recall');
-    } catch {
+    } catch (err) {
+      if (CONNECTION_MODE === 'AWS') {
+        throw err;
+      }
       const newRecall: RecallIncident = {
         recallId: `REC-${Date.now().toString().slice(-4)}`,
         batchId: payload.batchId,

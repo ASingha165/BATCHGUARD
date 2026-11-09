@@ -1,0 +1,116 @@
+{
+  "Comment": "BatchGuard Minimal Recall Orchestration State Machine (Deterministic 4-Stage Execution)",
+  "StartAt": "CalculateBlastRadius",
+  "States": {
+    "CalculateBlastRadius": {
+      "Type": "Task",
+      "Resource": "${CalculateBlastRadiusWorkerArn}",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 2,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.error",
+          "Next": "HandleWorkflowFailure"
+        }
+      ],
+      "Next": "LockInventory"
+    },
+    "LockInventory": {
+      "Type": "Task",
+      "Resource": "${LockPosInventoryWorkerArn}",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 2,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.error",
+          "Next": "HandleWorkflowFailure"
+        }
+      ],
+      "Next": "RecordAudit"
+    },
+    "RecordAudit": {
+      "Type": "Task",
+      "Resource": "${RecordAuditWorkerArn}",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 2,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.error",
+          "Next": "HandleWorkflowFailure"
+        }
+      ],
+      "Next": "FinalizeRecall"
+    },
+    "FinalizeRecall": {
+      "Type": "Task",
+      "Resource": "${FinalizeRecallWorkerArn}",
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException"
+          ],
+          "IntervalSeconds": 2,
+          "MaxAttempts": 2,
+          "BackoffRate": 2.0
+        }
+      ],
+      "Catch": [
+        {
+          "ErrorEquals": ["States.ALL"],
+          "ResultPath": "$.error",
+          "Next": "HandleWorkflowFailure"
+        }
+      ],
+      "Next": "RecallCompleted"
+    },
+    "RecallCompleted": {
+      "Type": "Succeed"
+    },
+    "HandleWorkflowFailure": {
+      "Type": "Task",
+      "Resource": "${HandleFailureWorkerArn}",
+      "Next": "RecallFailed"
+    },
+    "RecallFailed": {
+      "Type": "Fail",
+      "Error": "RecallWorkflowFailed",
+      "Cause": "Step Functions minimal recall workflow encountered an unhandled execution error."
+    }
+  }
+}
+

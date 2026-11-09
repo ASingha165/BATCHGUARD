@@ -1,22 +1,24 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
+import { getCachedConnectionStatus } from '../../services/api';
 
 interface NavItem {
   name: string;
   path: string;
   icon: string;
   badge?: string;
+  unsupportedInMinimal?: boolean;
 }
 
 const NAV_ITEMS: NavItem[] = [
   { name: 'Overview', path: '/dashboard', icon: 'dashboard' },
   { name: 'Batch Registry', path: '/batches', icon: 'inventory_2' },
   { name: 'Batch Details', path: '/batches/BG-2024-8891-ORG', icon: 'troubleshoot' },
-  { name: 'Supply Chain', path: '/supply-chain', icon: 'hub' },
+  { name: 'Supply Chain', path: '/supply-chain', icon: 'hub', unsupportedInMinimal: true },
   { name: 'Recall Management', path: '/recalls', icon: 'warning', badge: '2 Active' },
-  { name: 'Suppliers', path: '/suppliers', icon: 'factory' },
-  { name: 'Evidence Vault', path: '/evidence', icon: 'verified_user' },
-  { name: 'Audit Logs', path: '/audit-logs', icon: 'history' },
+  { name: 'Suppliers', path: '/suppliers', icon: 'factory', unsupportedInMinimal: true },
+  { name: 'Evidence Vault', path: '/evidence', icon: 'verified_user', unsupportedInMinimal: true },
+  { name: 'Audit Logs', path: '/audit-logs', icon: 'history', unsupportedInMinimal: true },
   { name: 'Settings', path: '/settings', icon: 'settings' },
 ];
 
@@ -26,6 +28,8 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => {
+  const connStatus = getCachedConnectionStatus();
+  const isMinimalAws = connStatus === 'AWS_CONNECTED';
   return (
     <>
       {/* Mobile Backdrop */}
@@ -85,11 +89,18 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = false, onClose }) => 
                   <span className="material-symbols-outlined text-[20px]">{item.icon}</span>
                   <span>{item.name}</span>
                 </div>
-                {item.badge && (
+                {item.badge ? (
                   <span className="px-space-xs py-0.5 rounded-full bg-error-container text-on-error-container font-label-sm text-label-sm uppercase font-bold tracking-wider">
                     {item.badge}
                   </span>
-                )}
+                ) : isMinimalAws && item.unsupportedInMinimal ? (
+                  <span
+                    className="px-space-xs py-0.5 rounded-full bg-surface-container-high text-on-surface-variant font-label-sm text-[10px] font-semibold tracking-wider"
+                    title="Simulated via demo client in minimal AWS deployment"
+                  >
+                    Demo
+                  </span>
+                ) : null}
               </NavLink>
             ))}
           </nav>

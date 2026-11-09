@@ -24,13 +24,32 @@ When a food safety emergency occurs (such as pathogen detection, severe allergen
 
 ---
 
-## Deployment Status & Architecture Clarification
+## Deployment Status & Architecture Profiles
 
 > [!IMPORTANT]
 > ### Public Demonstration vs. AWS Serverless Backend Architecture
 > * **Publicly Deployed Demonstration (Vercel):** The BatchGuard frontend is deployed and publicly accessible on **Vercel** at [https://batchguard-pi.vercel.app/dashboard](https://batchguard-pi.vercel.app/dashboard) as an interactive demonstration running in **DEMO MODE**. It simulates multi-tier batch genealogy, blast radius isolation, and multi-node recall operations in-browser with rich mock data. It does not invoke live AWS backend services.
-> * **Implemented and Locally Tested (AWS Serverless Architecture):** The complete production-grade serverless backend—including Python 3.12 AWS Lambda handlers and workers (20 functions defined in `template.yaml`: 7 API handlers and 13 Step Functions task workers), AWS Step Functions recall orchestrator state machine (`statemachine/recall_orchestrator.asl.json`), DynamoDB single-table schema, S3 evidence vault, and SNS notification topics—is fully implemented, validated by 108 backend tests (`pytest`), and SAM-linted (`template.yaml`).
-> * **Not Deployed to AWS:** The AWS serverless backend infrastructure is not currently deployed to AWS due to an explicit AWS Organizations Service Control Policy (SCP `p-ifuj16mo`) restricting resource creation in the target evaluation account. Do not assume AWS Lambda, DynamoDB, or Step Functions are live in the public demonstration.
+> * **Not Deployed to AWS:** The AWS serverless backend infrastructure is **not currently deployed to AWS** due to an explicit AWS Organizations Service Control Policy (SCP `p-ifuj16mo`) restricting resource creation in the target evaluation account (`316636858874`). Do not assume AWS Lambda, DynamoDB, or Step Functions are live in the public demonstration.
+> * **Dual Deployment Profiles Implemented:**
+>   1. **Full Production Profile (`template.yaml`):** 48 declared CloudFormation resources (20 Lambda functions: 7 API handlers and 13 Step Functions task workers), Amazon Cognito User Pool with TOTP MFA, Amazon S3 Evidence Vault (`AES-256` SSE-S3), Amazon SNS emergency alert topic, DynamoDB single-table schema with PITR, and Step Functions recall orchestrator state machine (`statemachine/recall_orchestrator.asl.json`).
+>   2. **Minimal Deployment Profile (`template.minimal.yaml`):** 17 declared CloudFormation resources (7 Lambda functions: 2 API handlers and 5 Step Functions task workers), 1 DynamoDB table (`PAY_PER_REQUEST`), 1 Step Functions 4-stage sequential state machine (`statemachine/minimal_recall_orchestrator.asl.json`), 1 REST API Gateway with CORS and throttling, and 7 explicit 14-day CloudWatch log groups. Zero VPC or NAT Gateway dependencies.
+> * **Verified by Automated Testing:** Fully validated by 176 automated tests (123 backend pytest tests, 21 frontend unit tests, and 32 Playwright production browser E2E tests) with SAM lint validation on both templates.
+
+---
+
+## Operational Connection Modes
+
+BatchGuard supports two operational connection modes configurable at runtime via environment variables:
+
+| Feature / Dimension | `LOCAL_DEMO_MODE` (Default) | `AWS_CONNECTED` (Minimal MVP) |
+| :--- | :--- | :--- |
+| **Activation** | Default mode (or `VITE_CONNECTION_MODE=DEMO`) | Set `VITE_CONNECTION_MODE=AWS` & `VITE_API_BASE_URL` |
+| **Target Infrastructure** | Zero AWS connection required; completely offline in-browser client | Amazon API Gateway $\rightarrow$ AWS Lambda $\rightarrow$ DynamoDB & Step Functions |
+| **Header Badge** | Displays `DEMO MODE` (amber status pill) | Displays `AWS CONNECTED (MVP)` (pulsing emerald badge upon verified probe) |
+| **Batch Operations** | In-browser simulated batch registration and query | Real HTTP requests to `POST /v1/batches` and `GET /v1/batches/{id}` |
+| **Recall Orchestration**| In-browser 4-step wizard with simulated blast radius | Real HTTP requests to `POST /v1/recalls` executing 4-stage Step Functions workflow |
+| **Error Handling** | Always succeeds with simulated domain records | True AWS server responses; real errors are propagated to the user (no silent fallback) |
+| **Unsupported Modules** | All modules interactively simulated | Modules not in minimal profile (`Supply Chain`, `Suppliers`, `Evidence Vault`, `Audit Logs`) are labeled `Demo` in the sidebar |
 
 ---
 
@@ -160,7 +179,7 @@ Open [http://localhost:5173](http://localhost:5173) in your browser. The applica
 cd frontend
 npm test
 
-# TypeScript Static Typecheck
+# TypeScript Static Typecheck (0 errors)
 npm run typecheck
 
 # Production Bundle Build
@@ -169,34 +188,52 @@ npm run build
 # End-to-End Browser Playwright Tests (32 tests)
 npx playwright test
 
-# Backend Pytest Suite (108 tests)
+# Backend Pytest Suite (123 tests: unit, integration, RBAC, minimal deployment)
 cd ..
 pytest backend/tests
 
-# AWS SAM Template Validation & Linting
-sam validate --lint
+# AWS SAM Template Validation & Linting (Both Profiles)
+sam validate -t template.yaml --lint
+sam validate -t template.minimal.yaml --lint
 ```
+**Total Automated Verification:** **176 tests passed / 0 failed (100% pass rate)**.
 
 ---
 
-## AWS Deployment Prerequisites (When Deploying to AWS)
+## AWS Deployment Architecture Profiles & Runbooks
 
-To deploy BatchGuard to an authorized, unrestricted AWS account:
+BatchGuard provides two declarative infrastructure specifications targeting different deployment requirements:
 
-1. **AWS Account & Permissions:**
-   * An AWS account with standard administrative permissions (not restricted by organizational SCPs denying `cloudformation:*`, `lambda:*`, `dynamodb:*`, etc.).
-   * Configured AWS CLI profile (`aws configure`).
-2. **Build Serverless Artifacts:**
-   ```bash
-   sam build
-   ```
-3. **Deploy with Guided Parameters:**
-   ```bash
-   sam deploy --guided
-   ```
-   * Stack Name: `batchguard-stack-dev`
-   * Region: `us-east-1`
-   * Environment: `dev`
+### Profile 1: Minimal AWS Serverless Deployment (`template.minimal.yaml`)
+Designed for fast, low-cost proof-of-concept evaluation without complex networking or enterprise auth dependencies:
+* **Resources:** Exactly **17 CloudFormation resources** (1 REST API Gateway, 1 DynamoDB table, 7 Lambda functions, 7 LogGroups, 1 Step Functions state machine).
+* **Cost Profile:** Zero NAT Gateways (saves ~$32.40/month per NAT), on-demand DynamoDB (`PAY_PER_REQUEST`), unreserved compute, and 14-day CloudWatch log retention.
+* **Orchestration:** 4-stage sequential Step Functions state machine (`CalculateBlastRadius` $\rightarrow$ `LockInventory` $\rightarrow$ `RecordAudit` $\rightarrow$ `FinalizeRecall`) with automated error catching.
+* **Authentication:** Hardened with IAM SigV4 support for non-public automated testing; unverified client headers are strictly rejected in deployed runtimes.
+* **Runbook:** See [`docs/MINIMAL_AWS_DEPLOYMENT_RUNBOOK.md`](docs/MINIMAL_AWS_DEPLOYMENT_RUNBOOK.md) for step-by-step PowerShell deployment instructions.
+
+```powershell
+# Deploy Minimal Profile to an authorized AWS account
+sam deploy --guided `
+  --template-file template.minimal.yaml `
+  --stack-name BatchGuard-Minimal-dev `
+  --region us-east-1 `
+  --parameter-overrides Environment=dev LogLevel=INFO CorsAllowOrigin="https://batchguard-pi.vercel.app" `
+  --capabilities CAPABILITY_IAM
+```
+
+### Profile 2: Full Production Architecture (`template.yaml`)
+The complete enterprise specification:
+* **Resources:** 48 declared CloudFormation resources (20 Lambda functions: 7 API handlers, 13 task workers).
+* **Identity & Governance:** Amazon Cognito User Pool with TOTP MFA and custom group claims.
+* **Evidence Storage:** Amazon S3 Evidence Vault (`AES-256` SSE-S3) with pre-signed PUT/GET URLs.
+* **Alerts:** Amazon SNS topic for emergency recall fan-out notifications.
+* **Runbook:** See [`docs/deployment.md`](docs/deployment.md) for full enterprise deployment procedures.
+
+### AWS Deployment Prerequisites & Cost Notice:
+* **Account Permissions:** Requires an unrestricted AWS account with permissions for `cloudformation:*`, `lambda:*`, `dynamodb:*`, `apigateway:*`, `states:*`, `logs:*`, and `iam:CreateRole`/`iam:PassRole`.
+* **Cost Disclosure:** AWS deployment is **NOT guaranteed to be zero-cost**. Accounts older than 12 months have expired introductory API Gateway free tiers, and accounts with other active workloads may have exhausted shared free tier quotas.
+* **Mandatory Teardown:** AWS Budgets are notification alerts, not hard spending caps. Run `sam delete --stack-name <stack-name>` immediately following evaluation to terminate all cloud resources.
 
 ---
 
